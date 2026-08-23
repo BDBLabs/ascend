@@ -106,6 +106,38 @@ export default async function EstimateDetailPage({
         <a href={`/jbox/estimates/${id}/sketch`} style={S.btnPrimary}>Open Sketch Canvas</a>
       </div>
 
+      {(estimate.jobId || estimate.invoiceId || estimate.signedByName) && (
+        <div style={{ ...S.card, marginTop: '20px' }}>
+          <h2 style={S.sectionTitle}>Linked Records</h2>
+          <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', fontSize: '0.875rem' }}>
+            {estimate.jobId && (
+              <div>
+                <span style={S.muted}>Work Order</span>
+                <div><a href={`/jbox/jobs/${estimate.jobId}`} style={{ color: COLORS.amber, textDecoration: 'none', fontWeight: 600 }}>{estimate.jobId.slice(0, 8)}...</a></div>
+              </div>
+            )}
+            {estimate.invoiceId && (
+              <div>
+                <span style={S.muted}>Invoice</span>
+                <div><a href={`/jbox/invoices/${estimate.invoiceId}`} style={{ color: COLORS.amber, textDecoration: 'none', fontWeight: 600 }}>{estimate.invoiceId.slice(0, 8)}...</a></div>
+              </div>
+            )}
+            {estimate.signedByName && (
+              <div>
+                <span style={S.muted}>Signed By</span>
+                <div style={{ color: COLORS.textSecondary }}>{estimate.signedByName}</div>
+              </div>
+            )}
+            {estimate.signedAt && (
+              <div>
+                <span style={S.muted}>Signed At</span>
+                <div style={{ color: COLORS.textSecondary }}>{new Date(estimate.signedAt).toLocaleDateString()}</div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {(estimate.scope || estimate.notes) && (
         <div style={{ ...S.card, marginTop: '24px' }}>
           <h2 style={S.sectionTitle}>Scope of Work &amp; Fixed Estimate</h2>

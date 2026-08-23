@@ -40,20 +40,34 @@ export default function JBoxPriceBookPage() {
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('popular');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchItems = useCallback(async (q: string, cat: string) => {
     setLoading(true);
+    setError(null);
     try {
       const params = new URLSearchParams({ limit: '50' });
       if (q) params.set('q', q);
       if (cat && cat !== 'popular') params.set('category', cat);
       const res = await fetch(`/api/field/price-book?${params}`);
-      if (!res.ok) return;
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        if (res.status === 409) {
+          setError('The price book was updated. Please refresh.');
+        } else if (res.status === 503) {
+          setError(body?.error ?? 'Price book is not available yet.');
+        } else {
+          setError(body?.error ?? 'Failed to load price book.');
+        }
+        setItems([]);
+        return;
+      }
       const data = await res.json();
       setItems(data.items ?? []);
       if (data.categories?.length) setCategories(data.categories);
     } catch {
       setItems([]);
+      setError('Could not reach the server.');
     } finally {
       setLoading(false);
     }
@@ -108,6 +122,10 @@ export default function JBoxPriceBookPage() {
 
         {loading ? (
           <p style={S.loading}>Loading...</p>
+        ) : error ? (
+          <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid #ef4444', borderRadius: '6px', padding: '12px', marginBottom: '20px', color: '#fca5a5', fontSize: '13px' }}>
+            {error}
+          </div>
         ) : items.length === 0 ? (
           <div style={S.empty}>
             <p style={{ color: '#475569', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700, margin: 0 }}>

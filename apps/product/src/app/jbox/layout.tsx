@@ -5,6 +5,7 @@ import { getFieldPrincipal } from '@/lib/field-api-auth';
 import { isFieldAuthConfigured } from '@/lib/identity-environment';
 import { ROLE_LABELS } from '@/lib/identity';
 import { JBoxSidebar } from './jbox-sidebar';
+import { JBoxErrorBoundary } from './jbox-error-boundary';
 
 export const dynamic = 'force-dynamic';
 
@@ -53,7 +54,9 @@ export default async function JBoxLayout({ children }: { children: ReactNode }) 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: '#0f172a', color: '#f1f5f9', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
       <JBoxSidebar roleLabel={ROLE_LABELS[principal.role]} />
-      <main style={{ flex: 1, padding: '32px', overflowY: 'auto' }}>{children}</main>
+      <main style={{ flex: 1, padding: '32px', overflowY: 'auto' }}>
+        <JBoxErrorBoundary>{children}</JBoxErrorBoundary>
+      </main>
     </div>
   );
 }
