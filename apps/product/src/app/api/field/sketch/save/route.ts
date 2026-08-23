@@ -74,8 +74,8 @@ export async function POST(request: NextRequest) {
     return privateJson({ error: 'estimateId is required' }, 400);
   }
 
-  if (!elements || elements.length === 0) {
-    return privateJson({ error: 'At least one element is required' }, 400);
+  if (!elements) {
+    return privateJson({ error: 'elements array is required' }, 400);
   }
 
   try {
