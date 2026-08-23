@@ -327,4 +327,5 @@
   .dispatch-hero h1 { font-size: 2rem; }
   .dispatch-tracker-form { flex-direction: column; }
   .dispatch-form { padding: 20px; }
+  .dispatch-step-label { font-size: 11px; }
 }

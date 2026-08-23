@@ -10,9 +10,26 @@ const STEPS = [
   'Job Completed & Paid',
 ] as const;
 
+const STATUS_TO_STEP: Record<string, number> = {
+  pending: 0,
+  reviewing: 1,
+  bid_sent: 2,
+  approved: 3,
+  in_progress: 4,
+  completed: 5,
+};
+
+const CATEGORY_LABELS: Record<string, string> = {
+  electrical: 'Electrical',
+  plumbing: 'Plumbing',
+  hvac: 'HVAC',
+  general: 'General',
+};
+
 export default function DispatchTrackPage() {
   const [ticketInput, setTicketInput] = useState('');
   const [activeStep, setActiveStep] = useState<number | null>(null);
+  const [ticketInfo, setTicketInfo] = useState<{ ticketNumber: string; status: string; category: string; createdAt: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -22,6 +39,7 @@ export default function DispatchTrackPage() {
     setLoading(true);
     setError(null);
     setActiveStep(null);
+    setTicketInfo(null);
 
     try {
       const res = await fetch(`/api/dispatch/track?ticket=${encodeURIComponent(ticket)}`);
@@ -30,7 +48,14 @@ export default function DispatchTrackPage() {
         setError(body.error ?? 'Ticket not found.');
         return;
       }
-      setActiveStep(body.activeStep ?? 0);
+      const step = STATUS_TO_STEP[body.status] ?? 0;
+      setActiveStep(step);
+      setTicketInfo({
+        ticketNumber: body.ticketNumber,
+        status: body.status,
+        category: body.category,
+        createdAt: body.createdAt,
+      });
     } catch {
       setError('Could not reach dispatch. Please try again.');
     } finally {
@@ -45,7 +70,7 @@ export default function DispatchTrackPage() {
       <div className="dispatch-tracker-form">
         <input
           type="text"
-          placeholder="Enter job ticket number..."
+          placeholder="DRQ-000000"
           aria-label="Job ticket number"
           value={ticketInput}
           onChange={(e) => setTicketInput(e.target.value)}
@@ -67,8 +92,28 @@ export default function DispatchTrackPage() {
         </div>
       )}
 
-      {activeStep !== null && (
+      {activeStep !== null && ticketInfo && (
         <div className="dispatch-stepper">
+          <div style={{ marginBottom: '24px', paddingBottom: '20px', borderBottom: '1px solid #334155' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <span style={{ fontFamily: 'ui-monospace, monospace', fontSize: '1.25rem', fontWeight: 900, color: '#f59e0b' }}>
+                {ticketInfo.ticketNumber}
+              </span>
+              <span style={{
+                display: 'inline-block', padding: '3px 10px', borderRadius: '4px',
+                fontSize: '11px', fontWeight: 700, textTransform: 'uppercase',
+                letterSpacing: '0.04em',
+                background: activeStep >= 5 ? '#10b981' : '#f59e0b',
+                color: '#0f172a',
+              }}>
+                {activeStep >= 5 ? 'Complete' : 'In Progress'}
+              </span>
+            </div>
+            <div style={{ fontSize: '12px', color: '#64748b' }}>
+              {CATEGORY_LABELS[ticketInfo.category] ?? ticketInfo.category} &middot; Filed {new Date(ticketInfo.createdAt).toLocaleDateString()}
+            </div>
+          </div>
+
           {STEPS.map((step, i) => {
             const isCompleted = i < activeStep;
             const isActive = i === activeStep;
