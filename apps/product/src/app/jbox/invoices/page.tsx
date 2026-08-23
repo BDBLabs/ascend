@@ -5,33 +5,23 @@ import {
 } from '@/lib/field-api-auth';
 import { isDatabaseConfigured } from '@/lib/db';
 import { listInvoices } from '@/lib/invoices';
+import {
+  FONT,
+  STATUS_LABELS,
+  card,
+  heading,
+  muted,
+  statusBadge,
+  subtitle,
+  table,
+  td,
+  th,
+} from '../jbox-tokens';
 
 export const dynamic = 'force-dynamic';
 
 const S = {
-  heading: { fontSize: '1.5rem', fontWeight: 900, textTransform: 'uppercase', color: 'white', margin: '0 0 8px' } as const,
-  subtitle: { color: '#94a3b8', fontSize: '0.875rem', margin: 0 } as const,
-  card: { background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', padding: '32px' } as const,
-  table: { width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' } as const,
-  th: { textAlign: 'left', padding: '10px 12px', borderBottom: '2px solid #334155', color: '#64748b', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' } as const,
-  td: { padding: '10px 12px', borderBottom: '1px solid #1e293b', color: '#cbd5e1' } as const,
-  muted: { color: '#64748b', fontSize: '0.8125rem' } as const,
-  badge: (bg: string) => ({ display: 'inline-block', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', background: bg, color: '#0f172a' }) as const,
-  price: { fontFamily: 'ui-monospace, monospace', textAlign: 'right' as const, fontWeight: 600 },
-};
-
-const STATUS_BG: Record<string, string> = {
-  draft: '#64748b',
-  issued: '#3b82f6',
-  paid: '#10b981',
-  cancelled: '#ef4444',
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  draft: 'Draft',
-  issued: 'Issued',
-  paid: 'Paid',
-  cancelled: 'Cancelled',
+  price: { fontFamily: FONT.mono, textAlign: 'right' as const, fontWeight: 600 },
 };
 
 export default async function JBoxInvoicesPage() {
@@ -47,9 +37,9 @@ export default async function JBoxInvoicesPage() {
   if (!isDatabaseConfigured()) {
     return (
       <div>
-        <h1 style={S.heading}>Billing &amp; Tickets</h1>
-        <p style={S.subtitle}>Invoices, payment tracking, and service tickets.</p>
-        <div style={{ ...S.card, textAlign: 'center', marginTop: '32px' }}>
+        <h1 style={heading}>Billing &amp; Tickets</h1>
+        <p style={subtitle}>Invoices, payment tracking, and service tickets.</p>
+        <div style={{ ...card, textAlign: 'center', marginTop: '32px' }}>
           <p style={{ color: '#475569', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700, margin: 0 }}>
             Database not configured
           </p>
@@ -68,45 +58,45 @@ export default async function JBoxInvoicesPage() {
   return (
     <div>
       <div style={{ marginBottom: '32px' }}>
-        <h1 style={S.heading}>Billing &amp; Tickets</h1>
-        <p style={S.subtitle}>Invoices, payment tracking, and service tickets.</p>
+        <h1 style={heading}>Billing &amp; Tickets</h1>
+        <p style={subtitle}>Invoices, payment tracking, and service tickets.</p>
       </div>
 
       {invoices.length === 0 ? (
-        <div style={{ ...S.card, textAlign: 'center' }}>
+        <div style={{ ...card, textAlign: 'center' }}>
           <p style={{ color: '#475569', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700, margin: 0 }}>
             No invoices yet.
           </p>
         </div>
       ) : (
-        <div style={S.card}>
-          <table style={S.table}>
+        <div style={card}>
+          <table style={table}>
             <thead>
               <tr>
-                <th style={S.th}>Invoice</th>
-                <th style={S.th}>Customer</th>
-                <th style={S.th}>Status</th>
-                <th style={{ ...S.th, textAlign: 'right' }}>Total</th>
-                <th style={S.th}>Updated</th>
+                <th style={th}>Invoice</th>
+                <th style={th}>Customer</th>
+                <th style={th}>Status</th>
+                <th style={{ ...th, textAlign: 'right' }}>Total</th>
+                <th style={th}>Updated</th>
               </tr>
             </thead>
             <tbody>
               {invoices.map((invoice) => (
                 <tr key={invoice.id}>
-                  <td style={S.td}>
+                  <td style={td}>
                     <span style={{ fontWeight: 600 }}>{invoice.displayId}</span>
-                    {invoice.title && <div style={S.muted}>{invoice.title}</div>}
+                    {invoice.title && <div style={muted}>{invoice.title}</div>}
                   </td>
-                  <td style={S.td}>{invoice.customerName}</td>
-                  <td style={S.td}>
-                    <span style={S.badge(STATUS_BG[invoice.status] ?? '#64748b')}>
+                  <td style={td}>{invoice.customerName}</td>
+                  <td style={td}>
+                    <span style={statusBadge(invoice.status)}>
                       {STATUS_LABELS[invoice.status] ?? invoice.status}
                     </span>
                   </td>
-                  <td style={{ ...S.td, ...S.price }}>
+                  <td style={{ ...td, ...S.price }}>
                     ${(invoice.totals.totalCents / 100).toFixed(2)}
                   </td>
-                  <td style={{ ...S.td, ...S.muted }}>
+                  <td style={{ ...td, ...muted }}>
                     {new Date(invoice.updatedAt).toLocaleDateString()}
                   </td>
                 </tr>

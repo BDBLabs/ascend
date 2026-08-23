@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import {
   fieldPrincipalCan,
   getFieldPrincipal,
@@ -6,37 +5,36 @@ import {
 } from '@/lib/field-api-auth';
 import { isDatabaseConfigured } from '@/lib/db';
 import { getEstimate } from '@/lib/estimates';
+import {
+  COLORS,
+  FONT,
+  STATUS_LABELS,
+  card,
+  muted,
+  statusBadge,
+  subtitle,
+  table,
+  td,
+  th,
+} from '../../jbox-tokens';
 
 export const dynamic = 'force-dynamic';
 
 const S = {
-  backLink: { color: '#94a3b8', textDecoration: 'none', fontSize: '0.875rem' } as const,
-  heading: { fontSize: '1.5rem', fontWeight: 900, color: '#f59e0b', margin: 0 } as const,
-  subtitle: { color: '#94a3b8', fontSize: '0.875rem', margin: '4px 0 0' } as const,
-  card: { background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', padding: '24px', marginBottom: '20px' } as const,
-  sectionTitle: { fontSize: '0.875rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#f59e0b', margin: '0 0 16px' } as const,
-  badge: (bg: string) => ({ display: 'inline-block', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', background: bg, color: '#0f172a' }) as const,
-  table: { width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' } as const,
-  th: { textAlign: 'left', padding: '8px 12px', borderBottom: '2px solid #334155', color: '#64748b', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' } as const,
-  td: { padding: '8px 12px', borderBottom: '1px solid #1e293b', color: '#cbd5e1' } as const,
-  muted: { color: '#64748b', fontSize: '0.8125rem' } as const,
-  price: { fontFamily: 'ui-monospace, monospace', textAlign: 'right' as const },
+  backLink: { color: COLORS.textMuted, textDecoration: 'none', fontSize: '0.875rem' } as const,
+  heading: { fontSize: '1.5rem', fontWeight: 900, color: COLORS.amber, margin: 0 } as const,
+  subtitle: { ...subtitle, margin: '4px 0 0' },
+  card: { ...card, padding: '24px', marginBottom: '20px' },
+  sectionTitle: { fontSize: '0.875rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: COLORS.amber, margin: '0 0 16px' } as const,
+  table,
+  th: { ...th, padding: '8px 12px' },
+  td: { ...td, padding: '8px 12px' },
+  muted,
+  price: { fontFamily: FONT.mono, textAlign: 'right' as const },
   totalRow: { fontWeight: 900, fontSize: '1rem' } as const,
   actions: { display: 'flex', gap: '12px', flexWrap: 'wrap' as const },
-  btnPrimary: { display: 'inline-block', padding: '10px 20px', background: '#f59e0b', color: '#0f172a', borderRadius: '6px', fontWeight: 900, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.06em', textDecoration: 'none', border: 'none', cursor: 'pointer' } as const,
-  btnSecondary: { display: 'inline-block', padding: '10px 20px', background: '#334155', color: '#cbd5e1', borderRadius: '6px', fontWeight: 700, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.06em', textDecoration: 'none', border: '2px solid #475569', cursor: 'pointer' } as const,
-};
-
-const STATUS_BG: Record<string, string> = {
-  draft: '#64748b',
-  signed: '#10b981',
-  declined: '#ef4444',
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  draft: 'Draft',
-  signed: 'Approved / Signed',
-  declined: 'Declined',
+  btnPrimary: { display: 'inline-block', padding: '10px 20px', background: COLORS.amber, color: COLORS.bg, borderRadius: '6px', fontWeight: 900, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.06em', textDecoration: 'none', border: 'none', cursor: 'pointer' } as const,
+  btnSecondary: { display: 'inline-block', padding: '10px 20px', background: COLORS.border, color: COLORS.textSecondary, borderRadius: '6px', fontWeight: 700, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.06em', textDecoration: 'none', border: `2px solid ${COLORS.borderLight}`, cursor: 'pointer' } as const,
 };
 
 export default async function EstimateDetailPage({
@@ -84,9 +82,6 @@ export default async function EstimateDetailPage({
   }
 
   const lineItems = estimate.lineItems ?? [];
-  const subtotalCents = lineItems.reduce((sum, li) => sum + li.lineTotalCents, 0);
-  const taxCents = Math.round(subtotalCents * (estimate.taxRateMillipercent / 100000));
-  const totalCents = subtotalCents + taxCents + estimate.surchargeCents - Math.round(subtotalCents * (estimate.discountMillipercent / 100000));
 
   return (
     <div>
@@ -95,7 +90,7 @@ export default async function EstimateDetailPage({
           <a href="/jbox/estimates" style={S.backLink}>&larr; All Estimates</a>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '8px' }}>
             <h1 style={S.heading}>{estimate.displayId}</h1>
-            <span style={S.badge(STATUS_BG[estimate.status] ?? '#64748b')}>
+            <span style={statusBadge(estimate.status)}>
               {STATUS_LABELS[estimate.status] ?? estimate.status}
             </span>
           </div>
