@@ -84,7 +84,7 @@ export default async function JBoxInvoicesPage() {
               {invoices.map((invoice) => (
                 <tr key={invoice.id}>
                   <td style={td}>
-                    <span style={{ fontWeight: 600 }}>{invoice.displayId}</span>
+                    <a href={`/jbox/invoices/${invoice.id}`} style={{ color: '#f59e0b', textDecoration: 'none', fontWeight: 600 }}>{invoice.displayId}</a>
                     {invoice.title && <div style={muted}>{invoice.title}</div>}
                   </td>
                   <td style={td}>{invoice.customerName}</td>

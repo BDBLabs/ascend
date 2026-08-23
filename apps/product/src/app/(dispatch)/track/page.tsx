@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 
 const STEPS = [
   'Request Received',
@@ -32,6 +32,28 @@ export default function DispatchTrackPage() {
   const [ticketInfo, setTicketInfo] = useState<{ ticketNumber: string; status: string; category: string; createdAt: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const refresh = useCallback(async (ticket: string) => {
+    try {
+      const res = await fetch(`/api/dispatch/track?ticket=${encodeURIComponent(ticket)}`);
+      if (!res.ok) return;
+      const body = await res.json();
+      if (body.ok) {
+        setActiveStep(STATUS_TO_STEP[body.status] ?? 0);
+        setTicketInfo({
+          ticketNumber: body.ticketNumber,
+          status: body.status,
+          category: body.category,
+          createdAt: body.createdAt,
+        });
+      }
+    } catch { /* silent */ }
+  }, []);
+
+  useEffect(() => {
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  }, []);
 
   async function lookup() {
     const ticket = ticketInput.trim();
@@ -40,6 +62,7 @@ export default function DispatchTrackPage() {
     setError(null);
     setActiveStep(null);
     setTicketInfo(null);
+    if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
 
     try {
       const res = await fetch(`/api/dispatch/track?ticket=${encodeURIComponent(ticket)}`);
@@ -56,6 +79,7 @@ export default function DispatchTrackPage() {
         category: body.category,
         createdAt: body.createdAt,
       });
+      intervalRef.current = setInterval(() => refresh(ticket), 30_000);
     } catch {
       setError('Could not reach dispatch. Please try again.');
     } finally {
@@ -108,6 +132,11 @@ export default function DispatchTrackPage() {
               }}>
                 {activeStep >= 5 ? 'Complete' : 'In Progress'}
               </span>
+              {intervalRef.current && (
+                <span style={{ fontSize: '11px', color: '#475569', letterSpacing: '0.04em' }}>
+                  Auto-refreshing every 30s
+                </span>
+              )}
             </div>
             <div style={{ fontSize: '12px', color: '#64748b' }}>
               {CATEGORY_LABELS[ticketInfo.category] ?? ticketInfo.category} &middot; Filed {new Date(ticketInfo.createdAt).toLocaleDateString()}

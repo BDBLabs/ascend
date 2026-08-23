@@ -14,6 +14,7 @@ import {
   statusBadge,
   subtitle,
 } from '../../jbox-tokens';
+import { JobStatusActions } from '../../jbox-status-actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -83,6 +84,7 @@ export default async function JBoxJobDetailPage({
             {STATUS_LABELS[job.status] ?? job.status}
           </span>
         </div>
+        <JobStatusActions jobId={job.id} currentStatus={job.status} />
         <p style={S.subtitle}>{job.title}</p>
         {job.customerId ? (
           <p style={muted}>

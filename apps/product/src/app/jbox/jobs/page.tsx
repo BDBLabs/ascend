@@ -78,7 +78,7 @@ export default async function JBoxJobsPage() {
               {jobs.map((job) => (
                 <tr key={job.id}>
                   <td style={td}>
-                    <span style={{ fontWeight: 600 }}>{job.displayId}</span>
+                    <a href={`/jbox/jobs/${job.id}`} style={{ color: '#f59e0b', textDecoration: 'none', fontWeight: 600 }}>{job.displayId}</a>
                     {job.title && <div style={muted}>{job.title}</div>}
                   </td>
                   <td style={td}>{job.customerName}</td>

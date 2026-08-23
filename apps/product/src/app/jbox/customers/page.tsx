@@ -71,7 +71,7 @@ export default async function JBoxCustomersPage() {
               {customers.map((customer) => (
                 <tr key={customer.id}>
                   <td style={td}>
-                    <span style={{ fontWeight: 600 }}>{customer.displayId}</span>
+                    <a href={`/jbox/customers/${customer.id}`} style={{ color: '#f59e0b', textDecoration: 'none', fontWeight: 600 }}>{customer.displayId}</a>
                     <div>{customer.name}</div>
                   </td>
                   <td style={td}>

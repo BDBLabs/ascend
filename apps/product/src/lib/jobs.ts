@@ -142,6 +142,15 @@ export async function listScheduledJobs(
  * This preserves the legal paper trail and ensures the original context
  * of the call is never overwritten or lost.
  */
+export async function updateJobStatus(jobId: string, status: JobStatus): Promise<JobRecord | null> {
+  const sql = db();
+  const rows = (await sql.query(
+    `UPDATE jobs SET status = $2, updated_at = now() WHERE id = $1::uuid RETURNING *`,
+    [jobId, status],
+  )) as JobRow[];
+  return rows[0] ? mapJob(rows[0]) : null;
+}
+
 export async function createJobSnapshot(
   jobId: string,
   snapshotType: 'initial_request' | 'approved_estimate' | 'change_order' | 'final_invoice' | 'status_change',
