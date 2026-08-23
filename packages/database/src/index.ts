@@ -17,4 +17,4 @@
  * the expected schema version without keeping two hand-rolled strings in sync.
  * Update it whenever a new migration file is added to migrations/.
  */
-export const LATEST_MIGRATION = '019_dispatch_tickets_sketch_elements.sql';
+export const LATEST_MIGRATION = '021_dispatch_tickets_sketch_elements.sql';
