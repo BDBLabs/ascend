@@ -49,6 +49,7 @@ export type ProvisionTenantInput = {
   /** Optional Clerk organization id, linked when identity is wired up. */
   clerkOrganizationId?: string;
   templateId?: PublicSiteTemplateId;
+  tradeCategory?: string;
   config: Omit<ConfigV1, 'version' | 'templateId' | 'catalogVersion'>;
   priceBook?: PriceBookInput | null;
 };
@@ -163,6 +164,11 @@ export function validateProvisionTenantInput(raw: unknown): ProvisionTenantInput
     throw new ContractError('templateId is not a template in the catalog');
   }
 
+  const VALID_TRADE_CATEGORIES = new Set(['electrical', 'plumbing', 'hvac', 'general']);
+  const tradeCategory = typeof raw.tradeCategory === 'string' && VALID_TRADE_CATEGORIES.has(raw.tradeCategory)
+    ? raw.tradeCategory
+    : 'general';
+
   const priceBook = validatePriceBook(raw.priceBook);
 
   return {
@@ -171,6 +177,7 @@ export function validateProvisionTenantInput(raw: unknown): ProvisionTenantInput
     canonicalHostname,
     clerkOrganizationId,
     templateId: templateId as PublicSiteTemplateId | undefined,
+    tradeCategory,
     config: raw.config as ProvisionTenantInput['config'],
     priceBook,
   };

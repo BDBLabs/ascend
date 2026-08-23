@@ -49,6 +49,7 @@ export type ProvisionContract = {
   displayName: string;
   canonicalHostname: string;
   templateId: PublicSiteTemplateId;
+  tradeCategory?: string;
   config: Omit<ConfigV1, 'version' | 'templateId' | 'catalogVersion'>;
 };
 
@@ -56,6 +57,7 @@ export type OnboardingSubmitInput = {
   businessName: string;
   town: string;
   trade: string;
+  tradeCategory?: string;
   notes?: string;
   phone: string;
   email: string;
@@ -257,10 +259,16 @@ export function validateSubmitInput(raw: unknown): OnboardingSubmitInput {
     throw new OnboardingError('templateId is not a template in the catalog');
   }
 
+  const VALID_TRADE_CATEGORIES = new Set(['electrical', 'plumbing', 'hvac', 'general']);
+  const tradeCategory = typeof raw.tradeCategory === 'string' && VALID_TRADE_CATEGORIES.has(raw.tradeCategory)
+    ? raw.tradeCategory
+    : 'general';
+
   return {
     businessName: requiredString(raw.businessName, 'businessName', 200),
     town: requiredString(raw.town, 'town', 100),
     trade: requiredString(raw.trade, 'trade', 80),
+    tradeCategory,
     notes: optionalString(raw.notes, 'notes', 2000),
     phone,
     email,
@@ -323,6 +331,7 @@ export function buildProvisionContract(input: OnboardingSubmitInput): ProvisionC
     displayName: businessName,
     canonicalHostname: `${slug}.usejbox.com`,
     templateId: templateId as PublicSiteTemplateId,
+    tradeCategory: input.tradeCategory,
     config: configBody,
   };
 }

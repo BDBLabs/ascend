@@ -51,19 +51,25 @@ export default function SketchPage() {
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
   useEffect(() => {
-    fetch('/api/field/sketch/symbols')
-      .then((res) => res.json())
-      .then((data: { palette?: CanvasSymbol[] }) => {
-        const items = data.palette ?? [];
+    Promise.all([
+      fetch('/api/field/sketch/symbols').then((r) => r.json()),
+      fetch(`/api/field/sketch/save?estimateId=${encodeURIComponent(estimateId)}`).then((r) => r.json()),
+    ])
+      .then(([symbolData, elementData]) => {
+        const items = (symbolData as { palette?: CanvasSymbol[] }).palette ?? [];
         setSymbols(items);
         if (items.length > 0) {
           const cats = Array.from(new Set(items.map((s) => s.category)));
           setActiveCategory(cats[0] ?? 'All');
         }
+        const saved = (elementData as { elements?: PlacedElement[] }).elements ?? [];
+        if (saved.length > 0) {
+          setPlacedElements(saved);
+        }
       })
       .catch(() => setSymbols([]))
       .finally(() => setLoading(false));
-  }, []);
+  }, [estimateId]);
 
   const categories = useMemo(() => {
     const cats = Array.from(new Set(symbols.map((s) => s.category)));
@@ -117,11 +123,19 @@ export default function SketchPage() {
     setHoveredElement(null);
   }, []);
 
-  const clearAll = useCallback(() => {
-    if (confirm('Clear all placed elements?')) {
-      setPlacedElements([]);
+  const clearAll = useCallback(async () => {
+    if (!confirm('Clear all placed elements?')) return;
+    try {
+      await fetch('/api/field/sketch/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estimateId, elements: [] }),
+      });
+    } catch {
+      // best effort
     }
-  }, []);
+    setPlacedElements([]);
+  }, [estimateId]);
 
   const handleSaveAndSync = useCallback(async () => {
     if (placedElements.length === 0) return;

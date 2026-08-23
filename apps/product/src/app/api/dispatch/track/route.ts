@@ -1,16 +1,8 @@
 import type { NextRequest } from 'next/server';
-import { isDatabaseConfigured } from '@/lib/db';
+import { platformDb, isDatabaseConfigured } from '@/lib/db';
 import { privateJson } from '@/lib/http';
 
 export const dynamic = 'force-dynamic';
-
-const STEPS = [
-  { key: 'request_received', label: 'Request Received' },
-  { key: 'estimate_dispatched', label: 'Estimate Dispatched' },
-  { key: 'work_approved', label: 'Work Approved' },
-  { key: 'tech_en_route', label: 'Tech En Route' },
-  { key: 'job_completed', label: 'Job Completed & Paid' },
-] as const;
 
 export async function GET(request: NextRequest) {
   if (!isDatabaseConfigured()) {
@@ -18,21 +10,33 @@ export async function GET(request: NextRequest) {
   }
 
   const ticket = request.nextUrl.searchParams.get('ticket');
-  if (!ticket || typeof ticket !== 'string') {
+  if (!ticket) {
     return privateJson({ error: 'ticket query parameter is required' }, 400);
   }
 
-  // Stub response — real lookup will query service_requests by display_id.
-  const currentStep = 0;
+  try {
+    const sql = platformDb();
+    const rows = await sql.query(
+      'SELECT lookup_dispatch_ticket($1) AS result',
+      [ticket],
+    );
 
-  return privateJson({
-    ok: true,
-    ticket,
-    status: 'pending',
-    steps: STEPS.map((step, index) => ({
-      ...step,
-      completed: index < currentStep,
-      current: index === currentStep,
-    })),
-  });
+    const result = rows[0]?.result as { ok: boolean; error?: string; ticketNumber?: string; status?: string; activeStep?: number; category?: string; createdAt?: string } | undefined;
+
+    if (!result || !result.ok) {
+      return privateJson({ ok: false, error: result?.error ?? 'Ticket not found.' }, 404);
+    }
+
+    return privateJson({
+      ok: true,
+      ticketNumber: result.ticketNumber,
+      status: result.status,
+      activeStep: result.activeStep,
+      category: result.category,
+      createdAt: result.createdAt,
+    });
+  } catch (error) {
+    console.error('Dispatch ticket lookup failed:', error);
+    return privateJson({ error: 'Failed to look up ticket' }, 500);
+  }
 }

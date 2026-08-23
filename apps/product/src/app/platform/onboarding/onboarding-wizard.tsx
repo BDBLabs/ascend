@@ -18,6 +18,7 @@ import { useState, type FormEvent } from 'react';
 type Details = {
   businessName: string;
   trade: string;
+  tradeCategory: string;
   town: string;
   notes: string;
   phone: string;
@@ -54,6 +55,7 @@ const TEMPLATES = [
 const EMPTY_DETAILS: Details = {
   businessName: '',
   trade: '',
+  tradeCategory: 'general',
   town: '',
   notes: '',
   phone: '',
@@ -239,6 +241,7 @@ export default function OnboardingWizard() {
         body: JSON.stringify({
           businessName: details.businessName,
           trade: details.trade,
+          tradeCategory: details.tradeCategory,
           town: details.town,
           notes: details.notes,
           phone: details.phone,
@@ -381,6 +384,19 @@ export default function OnboardingWizard() {
                 required
                 placeholder="Electrician"
               />
+            </label>
+            <label>
+              Trade Category *
+              <select
+                value={details.tradeCategory}
+                onChange={(e) => setField('tradeCategory')(e.target.value)}
+                required
+              >
+                <option value="electrical">Electrical</option>
+                <option value="plumbing">Plumbing</option>
+                <option value="hvac">HVAC</option>
+                <option value="general">General / Other</option>
+              </select>
             </label>
             <label>
               Town you serve *

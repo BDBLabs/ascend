@@ -1,50 +1,52 @@
 import type { NextRequest } from 'next/server';
-import { isDatabaseConfigured } from '@/lib/db';
+import { platformDb, isDatabaseConfigured } from '@/lib/db';
 import { privateJson } from '@/lib/http';
 
 export const dynamic = 'force-dynamic';
 
-interface DispatchRequest {
-  category: string;
-  workRequired: string;
-  siteLocation?: string;
-}
-
-function generateTicketNumber(): string {
-  const n = Math.floor(100000 + Math.random() * 900000);
-  return `DRQ-${n}`;
-}
+const VALID_CATEGORIES = new Set(['electrical', 'plumbing', 'hvac', 'general']);
 
 export async function POST(request: NextRequest) {
   if (!isDatabaseConfigured()) {
     return privateJson({ error: 'Service temporarily unavailable' }, 503);
   }
 
-  let body: DispatchRequest;
+  let body: Record<string, unknown>;
   try {
-    body = await request.json();
+    body = (await request.json()) as Record<string, unknown>;
   } catch {
     return privateJson({ error: 'Invalid JSON body' }, 400);
   }
 
-  const { category, workRequired, siteLocation } = body;
+  const category = typeof body.category === 'string' ? body.category : '';
+  const workRequired = typeof body.workRequired === 'string' ? body.workRequired.trim() : '';
+  const siteLocation = typeof body.siteLocation === 'string' ? body.siteLocation : '';
 
-  const problems: string[] = [];
-  if (!category || typeof category !== 'string' || !category.trim()) {
-    problems.push('category is required');
+  if (!VALID_CATEGORIES.has(category)) {
+    return privateJson({ error: 'Valid category is required (electrical, plumbing, hvac, general)' }, 400);
   }
-  if (!workRequired || typeof workRequired !== 'string' || !workRequired.trim()) {
-    problems.push('workRequired is required');
+  if (!workRequired || workRequired.length > 4000) {
+    return privateJson({ error: 'workRequired is required (max 4000 chars)' }, 400);
   }
-  if (siteLocation !== undefined && typeof siteLocation !== 'string') {
-    problems.push('siteLocation must be a string');
-  }
-  if (problems.length) {
-    return privateJson({ error: problems.join('; ') }, 400);
+  if (siteLocation.length > 500) {
+    return privateJson({ error: 'siteLocation must be at most 500 chars' }, 400);
   }
 
-  // Stub DB write — dispatch portal has no tenant context, so we cannot insert
-  // into service_requests (which requires organization_id). The real write will
-  // be added once the org-resolution path is wired up.
-  return privateJson({ ok: true, ticketNumber: generateTicketNumber() }, 201);
+  try {
+    const sql = platformDb();
+    const rows = await sql.query(
+      'SELECT create_dispatch_ticket($1, $2, $3) AS ticket',
+      [category, workRequired, siteLocation],
+    );
+
+    const ticket = rows[0]?.ticket as { id: string; ticket_number: string } | undefined;
+    if (!ticket) {
+      return privateJson({ error: 'Failed to create dispatch ticket' }, 500);
+    }
+
+    return privateJson({ ok: true, ticketNumber: ticket.ticket_number }, 201);
+  } catch (error) {
+    console.error('Dispatch ticket creation failed:', error);
+    return privateJson({ error: 'Failed to create dispatch ticket' }, 500);
+  }
 }

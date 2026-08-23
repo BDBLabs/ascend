@@ -124,11 +124,11 @@ export async function provisionTenant(raw: unknown): Promise<ProvisionedTenant> 
   const statements: ControlStatement[] = [
     {
       role: 'control_app',
-      text: `INSERT INTO organizations (id, slug, display_name, status)
-             VALUES ($1, $2, $3, 'provisioning')
+      text: `INSERT INTO organizations (id, slug, display_name, trade_category, status)
+             VALUES ($1, $2, $3, $4, 'provisioning')
              ON CONFLICT (slug) DO NOTHING
              RETURNING id`,
-      values: [organizationId, input.slug, input.displayName],
+      values: [organizationId, input.slug, input.displayName, input.tradeCategory ?? 'general'],
     },
     {
       role: 'control_app',
