@@ -1,4 +1,4 @@
-export type AiActorRole = 'operator' | 'manager' | 'owner';
+export type AiActorRole = 'owner' | 'manager' | 'employee';
 
 export type AiActorContext = {
   requestId: string;
