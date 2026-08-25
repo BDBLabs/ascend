@@ -45,6 +45,23 @@ export const aiActorResolver: AiActorResolver = {
 };
 
 /**
+ * Finds the active AI actor for the current tenant by actor key.
+ * Used by the chat API to resolve the workspace's AI assistant.
+ */
+export async function findAiActorByKey(actorKey: string): Promise<AiActorIdentity | null> {
+  const context = requireOrganizationContext();
+  const rows = await db().query(
+    `SELECT id, organization_id, actor_key, authority_role, status
+       FROM ai_actors
+      WHERE actor_key = $1
+        AND organization_id = $2::uuid
+      LIMIT 1`,
+    [actorKey, context.organizationId],
+  );
+  return mapActor((rows[0] as unknown as AiActorRow) ?? null);
+}
+
+/**
  * Creates a stable AI actor identity for the current tenant.
  *
  * This operation is intentionally explicit: actor identities are provisioned
@@ -84,7 +101,7 @@ export async function provisionAiActor(input: {
       context.organizationId,
       input.actorKey,
       input.displayName,
-      input.authorityRole ?? 'operator',
+      input.authorityRole ?? 'employee',
       input.modelProvider ?? null,
       input.modelName ?? null,
     ],

@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { label: 'Work Orders', href: '/jbox/jobs' },
   { label: 'Parts & Rates Index', href: '/jbox/price-book' },
   { label: 'Billing & Tickets', href: '/jbox/invoices' },
+  { label: 'AI Assistant', href: '/jbox/ai' },
 ];
 
 export function JBoxSidebar({ roleLabel }: { roleLabel: RoleLabel }) {
