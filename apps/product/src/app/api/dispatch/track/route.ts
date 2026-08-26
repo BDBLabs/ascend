@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
       [ticket],
     );
 
-    const result = rows[0]?.result as { ok: boolean; error?: string; ticketNumber?: string; status?: string; activeStep?: number; category?: string; createdAt?: string } | undefined;
+    const result = rows[0]?.result as { ok: boolean; error?: string; ticketNumber?: string; status?: string; activeStep?: number; category?: string; createdAt?: string; contactName?: string; contactPhone?: string; priority?: string; workSummary?: string } | undefined;
 
     if (!result || !result.ok) {
       return privateJson({ ok: false, error: result?.error ?? 'Ticket not found.' }, 404);
@@ -33,6 +33,10 @@ export async function GET(request: NextRequest) {
       status: result.status,
       activeStep: result.activeStep,
       category: result.category,
+      contactName: result.contactName,
+      contactPhone: result.contactPhone,
+      priority: result.priority,
+      workSummary: result.workSummary,
       createdAt: result.createdAt,
     });
   } catch (error) {

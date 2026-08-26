@@ -5,6 +5,7 @@ import { privateJson } from '@/lib/http';
 export const dynamic = 'force-dynamic';
 
 const VALID_CATEGORIES = new Set(['electrical', 'plumbing', 'hvac', 'general']);
+const VALID_PRIORITIES = new Set(['emergency', 'urgent', 'normal', 'low']);
 
 export async function POST(request: NextRequest) {
   if (!isDatabaseConfigured()) {
@@ -21,6 +22,11 @@ export async function POST(request: NextRequest) {
   const category = typeof body.category === 'string' ? body.category : '';
   const workRequired = typeof body.workRequired === 'string' ? body.workRequired.trim() : '';
   const siteLocation = typeof body.siteLocation === 'string' ? body.siteLocation : '';
+  const contactName = typeof body.contactName === 'string' ? body.contactName.trim() : '';
+  const contactEmail = typeof body.contactEmail === 'string' ? body.contactEmail.trim() : '';
+  const contactPhone = typeof body.contactPhone === 'string' ? body.contactPhone.trim() : '';
+  const priority = typeof body.priority === 'string' ? body.priority : 'normal';
+  const preferredDate = typeof body.preferredDate === 'string' ? body.preferredDate : null;
 
   if (!VALID_CATEGORIES.has(category)) {
     return privateJson({ error: 'Valid category is required (electrical, plumbing, hvac, general)' }, 400);
@@ -31,12 +37,24 @@ export async function POST(request: NextRequest) {
   if (siteLocation.length > 500) {
     return privateJson({ error: 'siteLocation must be at most 500 chars' }, 400);
   }
+  if (contactName.length > 200) {
+    return privateJson({ error: 'contactName must be at most 200 chars' }, 400);
+  }
+  if (contactEmail.length > 320) {
+    return privateJson({ error: 'contactEmail must be at most 320 chars' }, 400);
+  }
+  if (contactPhone.length > 40) {
+    return privateJson({ error: 'contactPhone must be at most 40 chars' }, 400);
+  }
+  if (!VALID_PRIORITIES.has(priority)) {
+    return privateJson({ error: 'Invalid priority (emergency, urgent, normal, low)' }, 400);
+  }
 
   try {
     const sql = platformDb();
     const rows = await sql.query(
-      'SELECT create_dispatch_ticket($1, $2, $3) AS ticket',
-      [category, workRequired, siteLocation],
+      'SELECT create_dispatch_ticket($1, $2, $3, $4, $5, $6, $7, $8) AS ticket',
+      [category, workRequired, siteLocation, contactName, contactEmail, contactPhone, priority, preferredDate],
     );
 
     const ticket = rows[0]?.ticket as { id: string; ticket_number: string } | undefined;

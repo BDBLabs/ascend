@@ -29,7 +29,10 @@ const CATEGORY_LABELS: Record<string, string> = {
 export default function DispatchTrackPage() {
   const [ticketInput, setTicketInput] = useState('');
   const [activeStep, setActiveStep] = useState<number | null>(null);
-  const [ticketInfo, setTicketInfo] = useState<{ ticketNumber: string; status: string; category: string; createdAt: string } | null>(null);
+  const [ticketInfo, setTicketInfo] = useState<{
+    ticketNumber: string; status: string; category: string; createdAt: string;
+    contactName?: string; contactPhone?: string; priority?: string; workSummary?: string;
+  } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -46,6 +49,10 @@ export default function DispatchTrackPage() {
           status: body.status,
           category: body.category,
           createdAt: body.createdAt,
+          contactName: body.contactName,
+          contactPhone: body.contactPhone,
+          priority: body.priority,
+          workSummary: body.workSummary,
         });
       }
     } catch { /* silent */ }
@@ -78,6 +85,10 @@ export default function DispatchTrackPage() {
         status: body.status,
         category: body.category,
         createdAt: body.createdAt,
+        contactName: body.contactName,
+        contactPhone: body.contactPhone,
+        priority: body.priority,
+        workSummary: body.workSummary,
       });
       intervalRef.current = setInterval(() => refresh(ticket), 30_000);
     } catch {
@@ -140,7 +151,29 @@ export default function DispatchTrackPage() {
             </div>
             <div style={{ fontSize: '12px', color: '#64748b' }}>
               {CATEGORY_LABELS[ticketInfo.category] ?? ticketInfo.category} &middot; Filed {new Date(ticketInfo.createdAt).toLocaleDateString()}
+              {ticketInfo.priority && ticketInfo.priority !== 'normal' && (
+                <span style={{
+                  marginLeft: '8px', padding: '1px 6px', borderRadius: '3px',
+                  fontSize: '10px', fontWeight: 700, textTransform: 'uppercase',
+                  background: ticketInfo.priority === 'emergency' ? 'rgba(239,68,68,0.15)' : ticketInfo.priority === 'urgent' ? 'rgba(245,158,11,0.15)' : 'rgba(100,116,139,0.15)',
+                  color: ticketInfo.priority === 'emergency' ? '#fca5a5' : ticketInfo.priority === 'urgent' ? '#fbbf24' : '#94a3b8',
+                }}>
+                  {ticketInfo.priority}
+                </span>
+              )}
             </div>
+            {ticketInfo.workSummary && (
+              <p style={{ fontSize: '13px', color: '#94a3b8', margin: '12px 0 0', lineHeight: 1.5 }}>
+                {ticketInfo.workSummary}
+              </p>
+            )}
+            {(ticketInfo.contactName || ticketInfo.contactPhone) && (
+              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '8px' }}>
+                {ticketInfo.contactName && <span>{ticketInfo.contactName}</span>}
+                {ticketInfo.contactName && ticketInfo.contactPhone && <span> &middot; </span>}
+                {ticketInfo.contactPhone && <span>{ticketInfo.contactPhone}</span>}
+              </div>
+            )}
           </div>
 
           {STEPS.map((step, i) => {

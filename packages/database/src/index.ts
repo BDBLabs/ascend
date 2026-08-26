@@ -17,4 +17,4 @@
  * the expected schema version without keeping two hand-rolled strings in sync.
  * Update it whenever a new migration file is added to migrations/.
  */
-export const LATEST_MIGRATION = '022_ai_conversations_messages.sql';
+export const LATEST_MIGRATION = '023_dispatch_contact_priority_photos.sql';
