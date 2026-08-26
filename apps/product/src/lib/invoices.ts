@@ -43,6 +43,25 @@ export type CreateInvoiceResult =
   | { ok: true; value: InvoiceRecord | InvoiceSummary; reused: boolean }
   | { ok: false; reason: CreateInvoiceFailure };
 
+export type IssueInvoiceFailure = 'not-found' | 'not-draft' | 'conflict';
+
+export type IssueInvoiceResult =
+  | { ok: true; value: InvoiceRecord }
+  | { ok: false; reason: IssueInvoiceFailure };
+
+export type CancelInvoiceFailure = 'not-found' | 'terminal' | 'conflict';
+
+export type CancelInvoiceResult =
+  | { ok: true; value: InvoiceRecord }
+  | { ok: false; reason: CancelInvoiceFailure };
+
+export type RecordPaymentFailure =
+  | 'not-found' | 'not-issuable' | 'amount-exceeds-balance' | 'conflict';
+
+export type RecordPaymentResult =
+  | { ok: true; value: InvoiceRecord }
+  | { ok: false; reason: RecordPaymentFailure; detail?: string };
+
 type InvoiceRow = Record<string, unknown>;
 
 const timestampToken = (row: InvoiceRow, column: 'created_at' | 'updated_at' | 'due_at') => {
@@ -309,4 +328,122 @@ export async function createInvoiceFromEstimate(
   const raced = await getInvoiceByEstimate(estimateId);
   if (raced) return { ok: true, value: raced, reused: true };
   return { ok: false, reason: 'conflict' };
+}
+
+export async function issueInvoice(
+  id: string,
+  expectedUpdatedAt: string,
+  ctx: InvoiceEventContext,
+): Promise<IssueInvoiceResult> {
+  const sql = db();
+  const actorId = requireOrganizationContext().actorId;
+
+  const rows = (await sql`
+    UPDATE invoices
+    SET status = 'issued', updated_at = now()
+    WHERE id = ${id}::uuid
+      AND organization_id = app_require_organization_id()
+      AND status = 'draft'
+      AND updated_at = ${expectedUpdatedAt}::timestamptz
+    RETURNING id, updated_at
+  `) as { id: string; updated_at: Date }[];
+
+  if (!rows.length) {
+    const existing = await getInvoice(id);
+    if (!existing) return { ok: false, reason: 'not-found' };
+    return { ok: false, reason: existing.status === 'draft' ? 'conflict' : 'not-draft' };
+  }
+
+  await sql`
+    INSERT INTO invoice_events (organization_id, invoice_id, event, actor_id, meta)
+    VALUES (app_require_organization_id(), ${id}::uuid, 'issued', ${actorId},
+            jsonb_build_object('request_ip', ${ctx.ip}::text, 'user_agent', ${ctx.userAgent}::text))
+  `;
+
+  const updated = await getInvoice(id);
+  if (!updated) throw new Error('Invoice could not be read after issue.');
+  return { ok: true, value: updated };
+}
+
+export async function cancelInvoice(
+  id: string,
+  ctx: InvoiceEventContext,
+): Promise<CancelInvoiceResult> {
+  const sql = db();
+  const actorId = requireOrganizationContext().actorId;
+
+  const rows = (await sql`
+    UPDATE invoices
+    SET status = 'cancelled', updated_at = now()
+    WHERE id = ${id}::uuid
+      AND organization_id = app_require_organization_id()
+      AND status IN ('draft', 'issued')
+    RETURNING id
+  `) as { id: string }[];
+
+  if (!rows.length) {
+    const existing = await getInvoice(id);
+    if (!existing) return { ok: false, reason: 'not-found' };
+    return { ok: false, reason: 'terminal' };
+  }
+
+  await sql`
+    INSERT INTO invoice_events (organization_id, invoice_id, event, actor_id, meta)
+    VALUES (app_require_organization_id(), ${id}::uuid, 'cancelled', ${actorId},
+            jsonb_build_object('request_ip', ${ctx.ip}::text, 'user_agent', ${ctx.userAgent}::text))
+  `;
+
+  const updated = await getInvoice(id);
+  if (!updated) throw new Error('Invoice could not be read after cancel.');
+  return { ok: true, value: updated };
+}
+
+export async function recordPayment(
+  id: string,
+  amountCents: number,
+  expectedUpdatedAt: string,
+  ctx: InvoiceEventContext,
+): Promise<RecordPaymentResult> {
+  if (amountCents <= 0) return { ok: false, reason: 'amount-exceeds-balance', detail: 'Payment must be positive.' };
+
+  const sql = db();
+  const actorId = requireOrganizationContext().actorId;
+
+  const rows = (await sql`
+    UPDATE invoices
+    SET amount_paid_cents = amount_paid_cents + ${amountCents},
+        status = CASE
+          WHEN amount_paid_cents + ${amountCents} >= total_cents THEN 'paid'
+          ELSE 'partially_paid'
+        END,
+        updated_at = now()
+    WHERE id = ${id}::uuid
+      AND organization_id = app_require_organization_id()
+      AND status IN ('issued', 'partially_paid')
+      AND updated_at = ${expectedUpdatedAt}::timestamptz
+      AND amount_paid_cents + ${amountCents} <= total_cents
+    RETURNING id
+  `) as { id: string }[];
+
+  if (!rows.length) {
+    const existing = await getInvoice(id);
+    if (!existing) return { ok: false, reason: 'not-found' };
+    if (existing.status !== 'issued' && existing.status !== 'partially_paid') {
+      return { ok: false, reason: 'not-issuable' };
+    }
+    if (existing.amountPaidCents + amountCents > existing.totals.totalCents) {
+      return { ok: false, reason: 'amount-exceeds-balance', detail: `Balance due is $${((existing.totals.totalCents - existing.amountPaidCents) / 100).toFixed(2)}.` };
+    }
+    return { ok: false, reason: 'conflict' };
+  }
+
+  await sql`
+    INSERT INTO invoice_events (organization_id, invoice_id, event, actor_id, meta)
+    VALUES (app_require_organization_id(), ${id}::uuid, 'payment_recorded', ${actorId},
+            jsonb_build_object('amount_cents', ${amountCents}, 'request_ip', ${ctx.ip}::text, 'user_agent', ${ctx.userAgent}::text))
+  `;
+
+  const updated = await getInvoice(id);
+  if (!updated) throw new Error('Invoice could not be read after payment.');
+  return { ok: true, value: updated };
 }

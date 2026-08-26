@@ -70,6 +70,7 @@ export default async function JBoxInvoicesPage() {
         </div>
       ) : (
         <div style={card}>
+          <div style={{ overflowX: 'auto' }}>
           <table style={table}>
             <thead>
               <tr>
@@ -103,6 +104,7 @@ export default async function JBoxInvoicesPage() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

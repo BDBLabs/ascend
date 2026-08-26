@@ -70,7 +70,7 @@ export function RequestForm({ services }: { services: ServiceDefinition[] }) {
       </label>
       <label>
         Service Category *
-        <select name="serviceCategory" required defaultValue="">
+        <select name="serviceSlug" required defaultValue="">
           <option value="">Select a category</option>
           {services.map((service) => (
             <option key={service.slug} value={service.slug}>{service.name}</option>
@@ -79,11 +79,11 @@ export function RequestForm({ services }: { services: ServiceDefinition[] }) {
       </label>
       <label>
         Work Required *
-        <textarea name="workRequired" required maxLength={500} rows={3} />
+        <textarea name="summary" required maxLength={300} rows={3} />
       </label>
       <label>
         Site Location / Access Notes
-        <textarea name="siteLocation" maxLength={500} rows={3} />
+        <textarea name="serviceAddress" maxLength={200} rows={3} />
       </label>
       <label>
         Upload Job Site Photos (up to 5)

@@ -117,10 +117,15 @@ describe('dispatch ticket creation', () => {
 
     expect(response.status).toBe(201);
     expect(payload).toEqual({ ok: true, ticketNumber: 'DT-2026-0007' });
-    expect(queryMock).toHaveBeenCalledWith('SELECT create_dispatch_ticket($1, $2, $3) AS ticket', [
+    expect(queryMock).toHaveBeenCalledWith('SELECT create_dispatch_ticket($1, $2, $3, $4, $5, $6, $7, $8) AS ticket', [
       VALID_BODY.category,
       VALID_BODY.workRequired,
       VALID_BODY.siteLocation,
+      '',
+      '',
+      '',
+      'normal',
+      null,
     ]);
   });
 

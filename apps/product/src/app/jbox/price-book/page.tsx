@@ -19,7 +19,7 @@ const S = {
   subtitle: { color: '#94a3b8', fontSize: '0.875rem', margin: '0 0 32px' } as const,
   card: { background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', padding: '32px' } as const,
   controls: { display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap' } as const,
-  search: { background: '#0f172a', border: '2px solid #334155', borderRadius: '6px', padding: '8px 12px', color: '#f1f5f9', fontSize: '0.875rem', outline: 'none', width: '280px' } as const,
+  search: { background: '#0f172a', border: '2px solid #334155', borderRadius: '6px', padding: '8px 12px', color: '#f1f5f9', fontSize: '0.875rem', outline: 'none', width: '100%', maxWidth: '280px' } as const,
   tab: (active: boolean) => ({
     padding: '6px 14px', borderRadius: '4px', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase',
     letterSpacing: '0.04em', border: 'none', cursor: 'pointer',
@@ -133,6 +133,7 @@ export default function JBoxPriceBookPage() {
             </p>
           </div>
         ) : (
+          <div style={{ overflowX: 'auto' }}>
           <table style={S.table}>
             <thead>
               <tr>
@@ -159,6 +160,7 @@ export default function JBoxPriceBookPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>

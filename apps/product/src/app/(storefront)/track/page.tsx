@@ -4,33 +4,53 @@ import { db, isDatabaseConfigured } from '@/lib/db';
 import { withTenant } from '@/lib/tenant';
 import styles from './track.module.css';
 
-function StatusStepper() {
+const STEPS = [
+  'Request Received',
+  'Estimate Dispatched',
+  'Work Approved',
+  'Tech En Route',
+  'Job Completed & Paid',
+];
+
+function getStepIndex(type: string, status: string): number {
+  if (type === 'estimate') {
+    if (status === 'signed') return 2;
+    if (status === 'declined') return -1;
+    return 1;
+  }
+  if (type === 'invoice') {
+    if (status === 'paid') return 4;
+    if (status === 'cancelled') return -1;
+    if (status === 'issued') return 3;
+    return 2;
+  }
+  return 0;
+}
+
+function StatusStepper({ type, status }: { type?: string; status?: string }) {
+  const activeIdx = type && status ? getStepIndex(type, status) : -1;
+
   return (
     <div className={styles.statusStepper}>
-      <div className={styles.stepItem}>
-        <span className={styles.stepNumber}>1</span>
-        <span className={styles.stepLabel}>Request Received</span>
-      </div>
-      <div className={styles.stepConnector} />
-      <div className={styles.stepItem}>
-        <span className={styles.stepNumber}>2</span>
-        <span className={styles.stepLabel}>Estimate Dispatched</span>
-      </div>
-      <div className={styles.stepConnector} />
-      <div className={styles.stepItem}>
-        <span className={styles.stepNumber}>3</span>
-        <span className={styles.stepLabel}>Work Approved</span>
-      </div>
-      <div className={styles.stepConnector} />
-      <div className={styles.stepItem}>
-        <span className={styles.stepNumber}>4</span>
-        <span className={styles.stepLabel}>Tech En Route</span>
-      </div>
-      <div className={styles.stepConnector} />
-      <div className={styles.stepItem}>
-        <span className={styles.stepNumber}>5</span>
-        <span className={styles.stepLabel}>Job Completed & Paid</span>
-      </div>
+      {STEPS.map((label, i) => (
+        <div key={i} style={{ display: 'contents' }}>
+          {i > 0 && <div className={styles.stepConnector} />}
+          <div className={styles.stepItem}>
+            <span
+              className={styles.stepNumber}
+              style={activeIdx >= i ? { background: '#f59e0b', color: '#0f172a' } : undefined}
+            >
+              {activeIdx >= i ? '✓' : i + 1}
+            </span>
+            <span
+              className={styles.stepLabel}
+              style={activeIdx >= i ? { color: '#f1f5f9', fontWeight: 600 } : activeIdx === -1 ? { color: '#ef4444' } : undefined}
+            >
+              {activeIdx === -1 && i === 0 ? (status === 'declined' ? 'Declined' : 'Cancelled') : label}
+            </span>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -131,7 +151,7 @@ export default async function TrackPage({ searchParams }: TrackPageProps) {
             <h1>Live Job Status</h1>
             <p>Enter your tracking code to view the status of your estimates and invoices.</p>
           </div>
-          <StatusStepper />
+          <StatusStepper type={documents[0]?.type} status={documents[0]?.status} />
           <form className={styles.trackForm} action="/track" method="get">
             <input
               type="text"

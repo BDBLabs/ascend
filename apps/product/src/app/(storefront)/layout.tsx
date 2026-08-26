@@ -62,6 +62,7 @@ export default async function StorefrontLayout({ children }: { children: ReactNo
             <a href="/">Home</a>
             <a href="/services">Services</a>
             <a href="/request">Request a quote</a>
+            <a href="/track">Track</a>
           </nav>
         </div>
       </header>

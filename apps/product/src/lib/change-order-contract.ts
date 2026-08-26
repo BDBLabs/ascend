@@ -96,3 +96,30 @@ export function validateChangeOrderInput(
 
   return { ok: true, value: value as ChangeOrderInput };
 }
+
+export function changeOrderStatusLabel(status: ChangeOrderStatus): string {
+  const labels: Record<ChangeOrderStatus, string> = {
+    draft: 'Draft',
+    pending_approval: 'Pending Approval',
+    approved: 'Approved',
+    rejected: 'Rejected',
+  };
+  return labels[status] ?? status;
+}
+
+export type ChangeOrderStatusColor = {
+  background: string;
+  text: string;
+  dot: string;
+};
+
+export const CHANGE_ORDER_STATUS_COLORS: Record<ChangeOrderStatus, ChangeOrderStatusColor> = {
+  draft: { background: '#eff6ff', text: '#1d4ed8', dot: '#3b82f6' },
+  pending_approval: { background: '#fffbeb', text: '#92400e', dot: '#f59e0b' },
+  approved: { background: '#d1fae5', text: '#065f46', dot: '#059669' },
+  rejected: { background: '#fef2f2', text: '#991b1b', dot: '#ef4444' },
+};
+
+export function changeOrderStatusColor(status: ChangeOrderStatus): ChangeOrderStatusColor {
+  return CHANGE_ORDER_STATUS_COLORS[status] ?? CHANGE_ORDER_STATUS_COLORS.draft;
+}

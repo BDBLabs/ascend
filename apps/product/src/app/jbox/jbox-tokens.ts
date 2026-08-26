@@ -34,6 +34,10 @@ export const STATUS_BG: Record<string, string> = {
   cancelled: COLORS.red,
   issued: COLORS.blue,
   paid: COLORS.green,
+  partially_paid: COLORS.amber,
+  pending_approval: COLORS.blue,
+  approved: COLORS.green,
+  rejected: COLORS.red,
 };
 
 export const STATUS_LABELS: Record<string, string> = {
@@ -47,6 +51,10 @@ export const STATUS_LABELS: Record<string, string> = {
   draft_invoice: 'Draft',
   issued: 'Issued',
   paid: 'Paid',
+  partially_paid: 'Partially Paid',
+  pending_approval: 'Pending Approval',
+  approved: 'Approved',
+  rejected: 'Rejected',
 };
 
 export const card = { background: COLORS.surface, border: `1px solid ${COLORS.border}`, borderRadius: '8px', padding: '32px' } as const;

@@ -18,6 +18,7 @@ import {
   td,
   th,
 } from '../../jbox-tokens';
+import { JBoxInvoiceActions } from '../../jbox-invoice-actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -104,6 +105,13 @@ export default async function JBoxInvoiceDetailPage({
         ) : (
           invoice.customerName && <p style={muted}>Customer: {invoice.customerName}</p>
         )}
+        <JBoxInvoiceActions
+          invoiceId={invoice.id}
+          status={invoice.status}
+          updatedAt={invoice.updatedAt}
+          totalCents={invoice.totals.totalCents}
+          amountPaidCents={invoice.amountPaidCents}
+        />
       </div>
 
       {(invoice.dueAt || invoice.depositCents || invoice.amountPaidCents) && (
@@ -135,7 +143,8 @@ export default async function JBoxInvoiceDetailPage({
       {lineItems.length > 0 && (
         <div style={S.card}>
           <h2 style={S.sectionTitle}>Line Items</h2>
-          <table style={S.table}>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={S.table}>
             <thead>
               <tr>
                 <th style={S.th}>Code</th>
@@ -166,6 +175,7 @@ export default async function JBoxInvoiceDetailPage({
               </tr>
             </tbody>
           </table>
+          </div>
         </div>
       )}
 

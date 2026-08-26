@@ -65,6 +65,7 @@ export default async function JBoxJobsPage() {
         </div>
       ) : (
         <div style={card}>
+          <div style={{ overflowX: 'auto' }}>
           <table style={table}>
             <thead>
               <tr>
@@ -92,6 +93,7 @@ export default async function JBoxJobsPage() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

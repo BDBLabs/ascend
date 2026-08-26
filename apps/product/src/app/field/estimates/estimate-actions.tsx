@@ -270,7 +270,7 @@ export function EstimateActions({ estimate, canPrepare, canApprove, canSend }: E
       )}
 
       {!isDraft && canPrepare && estimate.status === 'signed' && (
-        <Link className={styles.buttonGhost} href={`/field/estimates/${estimate.id}/change-order`}>
+        <Link className={styles.buttonGhost} href={`/jbox/estimates/${estimate.id}`}>
           Issue Change Order for Scope Variance
         </Link>
       )}

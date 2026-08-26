@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useState, useEffect } from 'react';
 
 type RoleLabel = string;
 
@@ -10,6 +11,7 @@ const NAV_ITEMS = [
   { label: 'Client Accounts', href: '/jbox/customers' },
   { label: 'Bids & Takeoffs', href: '/jbox/estimates' },
   { label: 'Work Orders', href: '/jbox/jobs' },
+  { label: 'Change Orders', href: '/jbox/change-orders' },
   { label: 'Parts & Rates Index', href: '/jbox/price-book' },
   { label: 'Billing & Tickets', href: '/jbox/invoices' },
   { label: 'AI Assistant', href: '/jbox/ai' },
@@ -17,13 +19,12 @@ const NAV_ITEMS = [
 
 export function JBoxSidebar({ roleLabel }: { roleLabel: RoleLabel }) {
   const pathname = usePathname();
+  const [mobileOpen, setMobileOpen] = useState(false);
 
-  return (
-    <aside style={{
-      width: '256px', borderRight: '1px solid #1e293b', background: '#1e293b',
-      padding: '24px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
-      flexShrink: 0,
-    }}>
+  useEffect(() => { setMobileOpen(false); }, [pathname]);
+
+  const navContent = (
+    <>
       <div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '40px' }}>
           <span style={{
@@ -85,6 +86,80 @@ export function JBoxSidebar({ roleLabel }: { roleLabel: RoleLabel }) {
           Active
         </span>
       </div>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      {/* Mobile hamburger */}
+      <button
+        onClick={() => setMobileOpen(!mobileOpen)}
+        style={{
+          display: 'none',
+          position: 'fixed', top: '12px', left: '12px', zIndex: 1100,
+          background: '#1e293b', border: '1px solid #334155', borderRadius: '6px',
+          padding: '8px', cursor: 'pointer', color: '#f59e0b',
+        }}
+        className="jbox-mobile-menu-btn"
+        aria-label="Toggle menu"
+      >
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+          {mobileOpen ? (
+            <path d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" />
+          ) : (
+            <>
+              <rect x="3" y="4" width="14" height="2" rx="1" />
+              <rect x="3" y="9" width="14" height="2" rx="1" />
+              <rect x="3" y="14" width="14" height="2" rx="1" />
+            </>
+          )}
+        </svg>
+      </button>
+
+      {/* Mobile overlay */}
+      {mobileOpen && (
+        <div
+          onClick={() => setMobileOpen(false)}
+          style={{
+            display: 'none',
+            position: 'fixed', inset: 0, zIndex: 998,
+            background: 'rgba(0,0,0,0.5)',
+          }}
+          className="jbox-mobile-overlay"
+        />
+      )}
+
+      {/* Desktop sidebar */}
+      <aside style={{
+        width: '256px', borderRight: '1px solid #1e293b', background: '#1e293b',
+        padding: '24px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+        flexShrink: 0,
+      }}>
+        {navContent}
+      </aside>
+
+      {/* Mobile drawer */}
+      <aside
+        className="jbox-mobile-drawer"
+        style={{
+          position: 'fixed', top: 0, left: mobileOpen ? 0 : '-280px',
+          width: '280px', height: '100vh', zIndex: 999,
+          background: '#1e293b', borderRight: '1px solid #334155',
+          padding: '24px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+          transition: 'left 200ms ease-in-out',
+          overflowY: 'auto',
+        }}
+      >
+        {navContent}
+      </aside>
+
+      <style>{`
+        @media (max-width: 768px) {
+          .jbox-mobile-menu-btn { display: block !important; }
+          .jbox-mobile-overlay { display: block !important; }
+          .jbox-mobile-drawer { display: flex !important; }
+        }
+      `}</style>
+    </>
   );
 }
