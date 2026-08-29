@@ -1,5 +1,7 @@
 # J-Box
 
+_A BagelTech project._
+
 A multitenant operating platform for small trade contractors — initially electrical.
 
 Two connected surfaces replace paper estimating and an absent or outdated web presence:
