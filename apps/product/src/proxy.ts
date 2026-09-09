@@ -57,6 +57,20 @@ export function proxy(request: NextRequest) {
     return next();
   }
 
+  // Ascend prototype: the deployment root is the Field login. Tenant
+  // storefronts return above and are unaffected; other deployments leave
+  // ASCEND_ROOT_IS_FIELD_LOGIN unset and keep the platform shell at /.
+  if (
+    request.nextUrl.pathname === '/' &&
+    process.env.ASCEND_ROOT_IS_FIELD_LOGIN === '1'
+  ) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/field/login';
+    const response = NextResponse.rewrite(url, init);
+    response.headers.set('Content-Security-Policy', buildCsp(nonce));
+    return response;
+  }
+
   if (request.nextUrl.pathname.startsWith('/api/')) {
     return next();
   }
