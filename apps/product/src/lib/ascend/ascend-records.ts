@@ -5,6 +5,7 @@
 import type { ElevatorType, ProjectStatus } from './ascend-contract';
 import type { WorkPackageStatus } from './work-package-contract';
 import type { CostCategory, CostKind } from './project-cost-contract';
+import type { PartStatus } from './project-part-contract';
 
 type Row = Record<string, unknown>;
 
@@ -257,6 +258,62 @@ export function mapProjectCostEntry(r: Row): ProjectCostEntryRecord {
     sourceRef: (r.source_ref as string) ?? '',
     actorId: (r.actor_id as string | null) ?? null,
     description: (r.description as string) ?? '',
+    createdAt: timestampToken(r, 'created_at'),
+    updatedAt: timestampToken(r, 'updated_at'),
+  };
+}
+
+export type ProjectPartRecord = {
+  id: string;
+  projectId: string;
+  projectDisplayId: string;
+  buildingId: string | null;
+  elevatorUnitId: string | null;
+  elevatorUnitNumber: string | null;
+  workPackageId: string | null;
+  workPackageName: string | null;
+  inventoryItemId: string | null;
+  inventoryItemCode: string | null;
+  description: string;
+  /** Integer hundredths, matching the inventory ledger convention. */
+  quantityRequiredHundredths: number;
+  quantityReceivedHundredths: number;
+  quantityInstalledHundredths: number;
+  status: PartStatus;
+  /** Integer cents. */
+  plannedCostCents: number;
+  actualCostCents: number;
+  supplier: string;
+  sourceRef: string;
+  neededDate: string | null;
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export function mapProjectPart(r: Row): ProjectPartRecord {
+  return {
+    id: r.id as string,
+    projectId: r.project_id as string,
+    projectDisplayId: (r.project_display_id as string) ?? '',
+    buildingId: (r.building_id as string | null) ?? null,
+    elevatorUnitId: (r.elevator_unit_id as string | null) ?? null,
+    elevatorUnitNumber: (r.elevator_unit_number as string | null) ?? null,
+    workPackageId: (r.work_package_id as string | null) ?? null,
+    workPackageName: (r.work_package_name as string | null) ?? null,
+    inventoryItemId: (r.inventory_item_id as string | null) ?? null,
+    inventoryItemCode: (r.inventory_item_code as string | null) ?? null,
+    description: r.description as string,
+    quantityRequiredHundredths: Number(r.quantity_required_hundredths ?? 0),
+    quantityReceivedHundredths: Number(r.quantity_received_hundredths ?? 0),
+    quantityInstalledHundredths: Number(r.quantity_installed_hundredths ?? 0),
+    status: r.status as PartStatus,
+    plannedCostCents: Number(r.planned_cost_cents ?? 0),
+    actualCostCents: Number(r.actual_cost_cents ?? 0),
+    supplier: (r.supplier as string) ?? '',
+    sourceRef: (r.source_ref as string) ?? '',
+    neededDate: toIsoDate(r.needed_date),
+    notes: (r.notes as string) ?? '',
     createdAt: timestampToken(r, 'created_at'),
     updatedAt: timestampToken(r, 'updated_at'),
   };

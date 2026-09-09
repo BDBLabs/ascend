@@ -148,7 +148,26 @@ to `contractor_app`, indexes leading with `organization_id`.
 - Deferred as instructed: earned value / margin math (Phase 5),
   billing integration (Phase 6).
 
-## 9. Phase 1 scope guardrails
+## 9. Phase 4 — project parts / procurement (migration `027`, committed)
+
+- `project_parts`: requirement/consumption rows per project, optional
+  building/elevator/package pins and optional `inventory_items` link.
+  Quantities in hundredths (ledger convention), planned vs actual
+  integer cents, supplier, PO ref, needed date. The inventory catalog
+  and stock ledger are untouched — workflow state lives here.
+- `project_part_events`: append-only (`reject_mutation()`) log of
+  created/status/quantity/note events with actor + meta — the
+  receiving, allocation, and installation trail.
+- Lifecycle in contract: forward-only chain with legal forward jumps
+  (off-the-shelf buys), `returned`/`cancelled` exits, terminal states
+  final. Quantity/cost moves are upward-only (corrections by note).
+- Server modules: `lib/ascend/project-part-contract.ts`,
+  `lib/ascend/project-parts.ts` (`createProjectPart`,
+  `updatePartStatus`, `recordPartQuantity`, filtered lists).
+- Deferred as instructed: stock decrement on install and PO-level
+  committed-cost linkage (Phases 5–6).
+
+## 10. Phase 1 scope guardrails
 
 - Additive migration only. No edits to `001`–`023`, no J-Box UI/route
   changes, no global renames.
