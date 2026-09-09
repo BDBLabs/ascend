@@ -104,7 +104,29 @@ to `contractor_app`, indexes leading with `organization_id`.
    evidence): identifiers (`project`, future `contract`, future
    `work_package`, events) are UUID-stable to support it; not built.
 
-## 7. Phase 1 scope guardrails
+## 7. Phase 2 — work packages (migration `025`, committed)
+
+- `work_packages`: one project (direct FK, CASCADE), name/category/
+  description, `budget_cost_cents` + `contract_value_cents` (integer
+  cents), planned/actual start/finish, status
+  (`not_started|in_progress|complete|on_hold|cancelled`),
+  `percent_complete` 0–100, responsible person, notes.
+- Completion equivalence CHECK: complete ⇔ 100%, so Phase 5 progress
+  math can trust the column.
+- `work_package_elevators`: package↔unit links (project-wide packages
+  simply have no links), mirroring the `project_elevators` pattern.
+- `work_package_events`: append-only (`reject_mutation()` trigger) log
+  of `created|status_changed|progress_changed|note_added` with actor +
+  meta — the progress audit foundation.
+- Server modules: `lib/ascend/work-package-contract.ts`,
+  `lib/ascend/work-packages.ts` (CRUD, unit links,
+  `recordWorkPackageProgress` which updates + appends the event, and
+  skips the event write on no-ops). Records extended in
+  `ascend-records.ts`.
+- Deferred as instructed: earned value, forecasting, billing (Phases
+  5–6); terminal-state rules for cancelled packages (Phase 5).
+
+## 8. Phase 1 scope guardrails
 
 - Additive migration only. No edits to `001`–`023`, no J-Box UI/route
   changes, no global renames.

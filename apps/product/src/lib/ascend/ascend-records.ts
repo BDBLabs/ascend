@@ -3,6 +3,7 @@
  * prefer the exact `to_json(...)` token, fall back to the raw value.
  */
 import type { ElevatorType, ProjectStatus } from './ascend-contract';
+import type { WorkPackageStatus } from './work-package-contract';
 
 type Row = Record<string, unknown>;
 
@@ -152,6 +153,58 @@ export function mapModernizationProject(r: Row): ModernizationProjectRecord {
     startDate: toIsoDate(r.start_date),
     targetCompletionDate: toIsoDate(r.target_completion_date),
     actualCompletionDate: toIsoDate(r.actual_completion_date),
+    notes: (r.notes as string) ?? '',
+    elevatorUnitIds,
+    createdAt: timestampToken(r, 'created_at'),
+    updatedAt: timestampToken(r, 'updated_at'),
+  };
+}
+
+export type WorkPackageRecord = {
+  id: string;
+  projectId: string;
+  projectDisplayId: string;
+  name: string;
+  category: string;
+  description: string;
+  /** Integer cents. */
+  budgetCostCents: number;
+  /** Integer cents (sell value). */
+  contractValueCents: number;
+  plannedStart: string | null;
+  plannedFinish: string | null;
+  actualStart: string | null;
+  actualFinish: string | null;
+  status: WorkPackageStatus;
+  percentComplete: number;
+  responsiblePerson: string;
+  notes: string;
+  elevatorUnitIds: string[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export function mapWorkPackage(r: Row): WorkPackageRecord {
+  const rawUnits = r.elevator_unit_ids;
+  const elevatorUnitIds = Array.isArray(rawUnits)
+    ? (rawUnits.filter((v) => typeof v === 'string') as string[])
+    : [];
+  return {
+    id: r.id as string,
+    projectId: r.project_id as string,
+    projectDisplayId: (r.project_display_id as string) ?? '',
+    name: r.name as string,
+    category: (r.category as string) ?? '',
+    description: (r.description as string) ?? '',
+    budgetCostCents: Number(r.budget_cost_cents ?? 0),
+    contractValueCents: Number(r.contract_value_cents ?? 0),
+    plannedStart: toIsoDate(r.planned_start),
+    plannedFinish: toIsoDate(r.planned_finish),
+    actualStart: toIsoDate(r.actual_start),
+    actualFinish: toIsoDate(r.actual_finish),
+    status: r.status as WorkPackageStatus,
+    percentComplete: Number(r.percent_complete ?? 0),
+    responsiblePerson: (r.responsible_person as string) ?? '',
     notes: (r.notes as string) ?? '',
     elevatorUnitIds,
     createdAt: timestampToken(r, 'created_at'),
