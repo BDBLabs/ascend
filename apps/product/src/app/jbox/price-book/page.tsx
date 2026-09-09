@@ -30,7 +30,7 @@ const S = {
   td: { padding: '10px 12px', borderBottom: '1px solid #1e293b', color: '#cbd5e1' } as const,
   muted: { color: '#64748b', fontSize: '0.8125rem' } as const,
   price: { fontFamily: 'ui-monospace, monospace', textAlign: 'right' as const, fontWeight: 600 },
-  empty: { textAlign: 'center', padding: '32px' as const },
+  empty: { textAlign: 'center' as const, padding: '32px' as const },
   loading: { color: '#64748b', fontSize: '0.875rem', textAlign: 'center' as const, padding: '32px' },
 };
 

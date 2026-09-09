@@ -14,7 +14,7 @@ const MAX_BODY_BYTES = 8192;
 
 export async function POST(request: NextRequest) {
   const principal = await getFieldPrincipal();
-  if (!fieldPrincipalCan(principal, 'estimates.open')) {
+  if (!fieldPrincipalCan(principal, 'estimates.prepare')) {
     return privateJson({ error: 'Unauthorized' }, 401);
   }
   if (!publicRequestIsSameOrigin(request)) {

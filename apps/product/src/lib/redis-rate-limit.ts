@@ -68,7 +68,7 @@ async function redisRateLimit(
   const refillPerMinute = options.refillPerMinute ?? 10;
   const fullKey = `${RATE_LIMIT_PREFIX}${key}`;
 
-  const result = await client.eval<number>(
+  const result = await client.eval(
     TOKEN_BUCKET_SCRIPT,
     [fullKey],
     [capacity, refillPerMinute, Date.now(), BUCKET_TTL_MS],

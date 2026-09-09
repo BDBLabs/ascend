@@ -1,3 +1,4 @@
+import type { NextRequest } from 'next/server';
 import {
   fieldSessionResponse,
   listActiveMembershipsForEmail,

@@ -49,13 +49,14 @@ export async function POST(
     const ext = file.name.split('.').pop() ?? 'jpg';
     const storageKey = await saveUpload(buffer, ext);
 
-    const rows = await sql.query(
+    const rows = (await sql.query(
       `INSERT INTO dispatch_ticket_photos (ticket_id, storage_key, filename, mime_type)
        VALUES ($1, $2, $3, $4)
        RETURNING id, filename`,
       [ticketId, storageKey, file.name, file.type],
-    );
-    saved.push(rows[0]);
+    )) as Array<{ id: string; filename: string }>;
+    const inserted = rows[0];
+    if (inserted) saved.push(inserted);
   }
 
   return privateJson({ ok: true, photos: saved }, 201);
