@@ -78,7 +78,14 @@ export function proxy(request: NextRequest) {
   // The Field workspace lives on the platform host (field.usejbox.com); its
   // pages and API share an origin and authenticate per request, so a platform
   // host must serve /field as-is rather than rewriting it onto the shell.
-  if (request.nextUrl.pathname === '/field' || request.nextUrl.pathname.startsWith('/field/')) {
+  // The Ascend workspace (/ascend) authenticates the same way and likewise
+  // serves as-is: tenant storefront hosts never reach this branch.
+  if (
+    request.nextUrl.pathname === '/field' ||
+    request.nextUrl.pathname.startsWith('/field/') ||
+    request.nextUrl.pathname === '/ascend' ||
+    request.nextUrl.pathname.startsWith('/ascend/')
+  ) {
     return next();
   }
 

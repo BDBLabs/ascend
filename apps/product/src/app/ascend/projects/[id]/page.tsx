@@ -1,0 +1,377 @@
+import Link from 'next/link';
+import { notFound, redirect } from 'next/navigation';
+import { getFieldPrincipal, withFieldContext } from '@/lib/field-api-auth';
+import { isDatabaseConfigured } from '@/lib/db';
+import { formatCents } from '@/lib/tenant';
+import { getModernizationProject } from '@/lib/ascend/modernization-projects';
+import { listWorkPackages } from '@/lib/ascend/work-packages';
+import { summarizeProjectCosts } from '@/lib/ascend/project-costs';
+import { listProjectParts } from '@/lib/ascend/project-parts';
+import { getElevatorUnit } from '@/lib/ascend/elevator-units';
+import {
+  getBillingSchedule,
+  listApplications,
+  listBillingPeriods,
+} from '@/lib/ascend/progress-billing';
+import { getProjectProgress } from '@/lib/ascend/project-progress';
+import {
+  A,
+  bigNumber,
+  card,
+  cardTitle,
+  grid,
+  heading,
+  link,
+  muted,
+  page,
+  pill,
+  subtitle,
+  table,
+  td,
+  th,
+  money,
+  sectionTitle,
+} from '../../ascend-theme';
+
+export const dynamic = 'force-dynamic';
+
+const STATUS_COLORS: Record<string, string> = {
+  not_started: A.textDim,
+  in_progress: A.amber,
+  complete: A.green,
+  on_hold: A.blue,
+  cancelled: A.red,
+  specified: A.textDim,
+  ordered: A.blue,
+  shipped: A.blue,
+  received: A.amber,
+  allocated: A.amber,
+  installed: A.green,
+  returned: A.red,
+  draft: A.textDim,
+  submitted: A.blue,
+  approved: A.green,
+  rejected: A.red,
+  invoiced: A.green,
+};
+
+type PageProps = { params: Promise<{ id: string }> };
+
+export default async function AscendProjectDetailPage({ params }: PageProps) {
+  const { id } = await params;
+  const principal = await getFieldPrincipal();
+  if (!principal) redirect('/field/login');
+  if (!isDatabaseConfigured()) {
+    return (
+      <div style={page}>
+        <h1 style={heading}>Project</h1>
+        <p style={subtitle}>Database not configured.</p>
+      </div>
+    );
+  }
+
+  const data = await withFieldContext(principal, async () => {
+    const project = await getModernizationProject(id);
+    if (!project) return null;
+    const [
+      progress,
+      packages,
+      costs,
+      parts,
+      schedule,
+      periods,
+      applications,
+      units,
+    ] = await Promise.all([
+      getProjectProgress(id),
+      listWorkPackages({ projectId: id, limit: 100 }),
+      summarizeProjectCosts(id),
+      listProjectParts({ projectId: id, limit: 100 }),
+      getBillingSchedule(id),
+      listBillingPeriods(id),
+      listApplications(id),
+      Promise.all(project.elevatorUnitIds.map((u) => getElevatorUnit(u))),
+    ]);
+    return { project, progress, packages, costs, parts, schedule, periods, applications, units };
+  });
+
+  if (!data) notFound();
+  const { project, progress, packages, costs, parts, schedule, periods, applications, units } = data;
+
+  return (
+    <div style={page}>
+      <p style={subtitle}>
+        <Link href="/ascend/projects" style={link}>
+          ← Projects
+        </Link>
+      </p>
+      <h1 style={heading}>{project.displayId}</h1>
+      <p style={subtitle}>
+        {project.customerName}
+        {project.buildingName ? ` · ${project.buildingName}` : ''} ·{' '}
+        <span style={pill(STATUS_COLORS[project.status] ?? A.textDim)}>
+          {project.status.replaceAll('_', ' ')}
+        </span>
+      </p>
+
+      <div style={grid}>
+        <div style={card}>
+          <p style={cardTitle}>Contract value</p>
+          <p style={bigNumber}>{formatCents(project.contractValueCents)}</p>
+        </div>
+        <div style={card}>
+          <p style={cardTitle}>Earned value</p>
+          <p style={bigNumber}>
+            {progress ? formatCents(progress.earnedValueCents) : '—'}
+          </p>
+        </div>
+        <div style={card}>
+          <p style={cardTitle}>Overall progress</p>
+          <p style={bigNumber}>
+            {progress ? `${progress.overallPercentComplete}%` : '—'}
+          </p>
+        </div>
+        <div style={card}>
+          <p style={cardTitle}>Actual cost</p>
+          <p style={bigNumber}>
+            {progress ? formatCents(progress.actualCostCents) : '—'}
+          </p>
+        </div>
+        <div style={card}>
+          <p style={cardTitle}>Forecast final</p>
+          <p style={bigNumber}>
+            {progress ? formatCents(progress.forecastFinalCents) : '—'}
+          </p>
+        </div>
+        <div style={card}>
+          <p style={cardTitle}>Projected margin</p>
+          <p
+            style={{
+              ...bigNumber,
+              color:
+                progress && progress.projectedMarginCents >= 0 ? A.green : A.red,
+            }}
+          >
+            {progress ? formatCents(progress.projectedMarginCents) : '—'}
+          </p>
+        </div>
+      </div>
+
+      <div style={card}>
+        <p style={cardTitle}>Project record</p>
+        <p style={muted}>
+          Manager: {project.projectManager || '—'} · Start:{' '}
+          {project.startDate ?? '—'} · Target: {project.targetCompletionDate ?? '—'} ·
+          Completed: {project.actualCompletionDate ?? '—'}
+          {project.notes ? ` · ${project.notes}` : ''}
+        </p>
+      </div>
+
+      <h2 style={sectionTitle}>Elevator units ({units.length})</h2>
+      {units.length === 0 ? (
+        <p style={muted}>No units linked.</p>
+      ) : (
+        <div style={card}>
+          <table style={table}>
+            <thead>
+              <tr>
+                <th style={th}>Unit</th>
+                <th style={th}>Make / model</th>
+                <th style={th}>Type</th>
+                <th style={th}>Stops</th>
+                <th style={th}>Controller</th>
+              </tr>
+            </thead>
+            <tbody>
+              {units.map((u) =>
+                u ? (
+                  <tr key={u.id}>
+                    <td style={td}>
+                      <Link href={`/ascend/elevators/${u.id}`} style={link}>
+                        {u.unitNumber}
+                      </Link>
+                    </td>
+                    <td style={td}>
+                      {[u.manufacturer, u.model].filter(Boolean).join(' ') || '—'}
+                    </td>
+                    <td style={td}>{u.elevatorType || '—'}</td>
+                    <td style={{ ...td, ...money }}>{u.stops ?? '—'}</td>
+                    <td style={td}>
+                      {[u.controllerManufacturer, u.controllerModel]
+                        .filter(Boolean)
+                        .join(' ') || '—'}
+                    </td>
+                  </tr>
+                ) : null,
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <h2 style={sectionTitle}>Work packages ({packages.length})</h2>
+      {packages.length === 0 ? (
+        <p style={muted}>No work packages yet.</p>
+      ) : (
+        <div style={card}>
+          <table style={table}>
+            <thead>
+              <tr>
+                <th style={th}>Package</th>
+                <th style={th}>Status</th>
+                <th style={{ ...th, textAlign: 'right' }}>Progress</th>
+                <th style={{ ...th, textAlign: 'right' }}>Budget</th>
+                <th style={{ ...th, textAlign: 'right' }}>Sell</th>
+                <th style={th}>Responsible</th>
+              </tr>
+            </thead>
+            <tbody>
+              {packages.map((w) => (
+                <tr key={w.id}>
+                  <td style={td}>{w.name}</td>
+                  <td style={td}>
+                    <span style={pill(STATUS_COLORS[w.status] ?? A.textDim)}>
+                      {w.status.replaceAll('_', ' ')}
+                    </span>
+                  </td>
+                  <td style={{ ...td, ...money }}>{w.percentComplete}%</td>
+                  <td style={{ ...td, ...money }}>
+                    {formatCents(w.budgetCostCents)}
+                  </td>
+                  <td style={{ ...td, ...money }}>
+                    {formatCents(w.contractValueCents)}
+                  </td>
+                  <td style={td}>{w.responsiblePerson || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <h2 style={sectionTitle}>Costs by lens × category</h2>
+      {costs.buckets.length === 0 ? (
+        <p style={muted}>No cost entries yet.</p>
+      ) : (
+        <div style={card}>
+          <table style={table}>
+            <thead>
+              <tr>
+                <th style={th}>Lens</th>
+                <th style={th}>Category</th>
+                <th style={{ ...th, textAlign: 'right' }}>Total</th>
+                <th style={{ ...th, textAlign: 'right' }}>Entries</th>
+              </tr>
+            </thead>
+            <tbody>
+              {costs.buckets.map((b) => (
+                <tr key={`${b.costKind}-${b.costCategory}`}>
+                  <td style={td}>{b.costKind}</td>
+                  <td style={td}>{b.costCategory}</td>
+                  <td style={{ ...td, ...money }}>
+                    {formatCents(b.totalCents)}
+                  </td>
+                  <td style={{ ...td, ...money }}>{b.entryCount}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <h2 style={sectionTitle}>Parts ({parts.length})</h2>
+      {parts.length === 0 ? (
+        <p style={muted}>No parts specified yet.</p>
+      ) : (
+        <div style={card}>
+          <table style={table}>
+            <thead>
+              <tr>
+                <th style={th}>Part</th>
+                <th style={th}>Status</th>
+                <th style={{ ...th, textAlign: 'right' }}>Required</th>
+                <th style={{ ...th, textAlign: 'right' }}>Received</th>
+                <th style={{ ...th, textAlign: 'right' }}>Installed</th>
+                <th style={th}>Supplier</th>
+              </tr>
+            </thead>
+            <tbody>
+              {parts.map((p) => (
+                <tr key={p.id}>
+                  <td style={td}>{p.description}</td>
+                  <td style={td}>
+                    <span style={pill(STATUS_COLORS[p.status] ?? A.textDim)}>
+                      {p.status}
+                    </span>
+                  </td>
+                  <td style={{ ...td, ...money }}>
+                    {(p.quantityRequiredHundredths / 100).toLocaleString()}
+                  </td>
+                  <td style={{ ...td, ...money }}>
+                    {(p.quantityReceivedHundredths / 100).toLocaleString()}
+                  </td>
+                  <td style={{ ...td, ...money }}>
+                    {(p.quantityInstalledHundredths / 100).toLocaleString()}
+                  </td>
+                  <td style={td}>{p.supplier || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <h2 style={sectionTitle}>Billing</h2>
+      <p style={muted}>
+        Retainage: {schedule ? `${schedule.retainagePercent}%` : 'no schedule'} ·{' '}
+        {periods.length} period(s) · {applications.length} application(s)
+      </p>
+      {applications.length === 0 ? (
+        <p style={muted}>No applications yet.</p>
+      ) : (
+        <div style={card}>
+          <table style={table}>
+            <thead>
+              <tr>
+                <th style={th}>App</th>
+                <th style={th}>Status</th>
+                <th style={{ ...th, textAlign: 'right' }}>Earned</th>
+                <th style={{ ...th, textAlign: 'right' }}>Prev. billed</th>
+                <th style={{ ...th, textAlign: 'right' }}>Retainage</th>
+                <th style={{ ...th, textAlign: 'right' }}>Stored mat.</th>
+                <th style={{ ...th, textAlign: 'right' }}>Due</th>
+              </tr>
+            </thead>
+            <tbody>
+              {applications.map((a) => (
+                <tr key={a.id}>
+                  <td style={td}>#{a.periodNumber}</td>
+                  <td style={td}>
+                    <span style={pill(STATUS_COLORS[a.status] ?? A.textDim)}>
+                      {a.status}
+                    </span>
+                  </td>
+                  <td style={{ ...td, ...money }}>
+                    {formatCents(a.earnedValueCents)}
+                  </td>
+                  <td style={{ ...td, ...money }}>
+                    {formatCents(a.previouslyBilledCents)}
+                  </td>
+                  <td style={{ ...td, ...money }}>
+                    {formatCents(a.retainageCents)}
+                  </td>
+                  <td style={{ ...td, ...money }}>
+                    {formatCents(a.storedMaterialsCents)}
+                  </td>
+                  <td style={{ ...td, ...money }}>
+                    {formatCents(a.currentDueCents)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
