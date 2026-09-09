@@ -214,7 +214,26 @@ to `contractor_app`, indexes leading with `organization_id`.
   directly from applications (needs estimate-decoupled invoice
   creation).
 
-## 12. Phase 1 scope guardrails
+## 12. Phase 7 — Ascend workspace UI (no migration, committed)
+
+- New `/ascend` route tree: dashboard (portfolio cards + project
+  table), projects list/detail (record, units, packages, cost lens
+  table, parts, billing applications), buildings list/detail,
+  elevators list/unit detail, bids (estimate pipeline), progress
+  (per-package bars), costs (lens totals), parts, billing.
+- Staff-gated shell: layout requires a field principal
+  (`jobs.read`, held by every staff role); per-page fail-closed login
+  redirect; all reads inside `withFieldContext`. Read-only views —
+  no mutations yet.
+- `proxy.ts` serves `/ascend` as-is (like `/field`); tenant
+  storefront hosts unaffected. `/jbox` routes untouched.
+- `ascend-theme.ts` keeps the workspace self-contained for the
+  Phase 8 rebrand. Dashboard fans out per-project progress reports
+  (fine at prototype scale; aggregate query later).
+- Deferred as instructed: estimate↔project linkage (bids link out
+  to Field estimates), write actions, Phase 8 brand cleanup.
+
+## 13. Phase 1 scope guardrails
 
 - Additive migration only. No edits to `001`–`023`, no J-Box UI/route
   changes, no global renames.
