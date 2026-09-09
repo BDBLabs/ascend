@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   buildEstimateDeliveryEmail,
   dispatchOutboxMessage,
+  finishWithRetry,
   isResendConfigured,
   OutboxDispatchError,
   type EstimateDeliveryPayload,
@@ -152,5 +153,33 @@ describe('dispatchOutboxMessage', () => {
       .catch((caught: unknown) => caught);
     expect(error).toBeInstanceOf(OutboxDispatchError);
     expect((error as OutboxDispatchError).code).toBe('delivery_not_configured');
+  });
+});
+
+describe('finishWithRetry', () => {
+  it('succeeds on the first attempt', async () => {
+    const finish = async () => undefined;
+    await expect(finishWithRetry('id-1', true, null, finish)).resolves.toBeUndefined();
+  });
+
+  it('retries a transient failure and eventually succeeds', async () => {
+    let calls = 0;
+    const finish = async () => {
+      calls += 1;
+      if (calls < 3) throw new Error('connection reset');
+    };
+    await finishWithRetry('id-1', true, null, finish);
+    expect(calls).toBe(3);
+  });
+
+  it('gives up and rethrows after exhausting retries', async () => {
+    let calls = 0;
+    const finish = async () => {
+      calls += 1;
+      throw new Error('db down');
+    };
+    await expect(finishWithRetry('id-1', false, 'provider_rejected', finish))
+      .rejects.toThrow('db down');
+    expect(calls).toBe(3);
   });
 });

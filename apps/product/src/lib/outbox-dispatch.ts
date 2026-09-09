@@ -9,6 +9,11 @@ import {
 const RESEND_API_URL = 'https://api.resend.com/emails';
 const MAX_DISPATCH_BATCH = 50;
 
+// The finish call is the single source of truth for a message's delivery state.
+// finish_outbox_message is idempotent by id, so retrying it is safe.
+const FINISH_MAX_ATTEMPTS = 3;
+const FINISH_BASE_DELAY_MS = 50;
+
 /**
  * Single source of truth for "is the email provider actually usable?". The
  * enqueue gate (estimate-delivery) and the dispatch path (sendEstimateDeliveryEmail)
@@ -221,6 +226,36 @@ export async function dispatchOutboxMessage(
 }
 
 /**
+ * Records the dispatch outcome, retrying the finish UPDATE to completion. If a
+ * transient DB failure is swallowed here, the row stays 'claimed'; when the
+ * 5-minute lease expires it is re-claimed and the email is re-sent to the
+ * customer (see #41). Retrying closes that duplicate-delivery window — the
+ * retry only ever re-applies the same idempotent UPDATE by id.
+ *
+ * Exported for tests; not part of the public dispatch API.
+ */
+export async function finishWithRetry(
+  id: string,
+  succeeded: boolean,
+  error: string | null,
+  finish: (id: string, succeeded: boolean, error: string | null) => Promise<void>,
+): Promise<void> {
+  let attempt = 0;
+  for (;;) {
+    try {
+      await finish(id, succeeded, error);
+      return;
+    } catch (caught) {
+      attempt += 1;
+      if (attempt >= FINISH_MAX_ATTEMPTS) throw caught;
+      await new Promise((resolve) =>
+        setTimeout(resolve, FINISH_BASE_DELAY_MS * 2 ** (attempt - 1)),
+      );
+    }
+  }
+}
+
+/**
  * Claims and dispatches the next batch of outbox messages, then records the
  * outcome through the SECURITY DEFINER finish window. Runs on the platform
  * client end to end: claiming and finishing are the cross-tenant windows and
@@ -254,7 +289,7 @@ export async function dispatchOutboxMessages(options: {
         ? error.code
         : 'dispatch_error';
       try {
-        await finishOutboxMessage(message.id, false, code);
+        await finishWithRetry(message.id, false, code, finishOutboxMessage);
       } catch {
         // The claim lease (5 minutes) will expire and the message becomes
         // eligible again; nothing further to do here.
@@ -264,10 +299,13 @@ export async function dispatchOutboxMessages(options: {
     }
 
     try {
-      await finishOutboxMessage(message.id, true, null);
+      await finishWithRetry(message.id, true, null, finishOutboxMessage);
       summary.delivered += 1;
     } catch {
-      // Lease expiry will re-claim; do not double-count.
+      // Even after retrying, the finish could not be recorded. The message
+      // stays 'claimed' and will be re-claimed after the lease expiry; at-least-
+      // once semantics remain. (Provider idempotency via the Idempotency-Key
+      // header is the backstop that prevents a duplicate send.)
     }
   }
   return summary;
