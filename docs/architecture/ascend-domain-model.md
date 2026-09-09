@@ -167,7 +167,29 @@ to `contractor_app`, indexes leading with `organization_id`.
 - Deferred as instructed: stock decrement on install and PO-level
   committed-cost linkage (Phases 5–6).
 
-## 10. Phase 1 scope guardrails
+## 10. Phase 5 — progress read model (no migration, committed)
+
+- Progress is computed, never stored: `lib/ascend/project-progress.ts`
+  derives every figure from package percents (Phase 2) and cost sums
+  (Phase 3) in integer arithmetic (half-up earned value, percents, and
+  margin basis points; no floats).
+- Report: overall physical % (earned ÷ live-scope contract),
+  per-package earned/budget/actual/committed/forecast slices,
+  actual/committed/budget totals, forecast final (explicit forecast
+  total when recorded, else actual + committed), projected margin +
+  bps, billed-to-date placeholder (0) with remaining billable.
+- Cancelled packages are reduced scope (excluded from earned and
+  contract totals; their posted costs still count), and cancelled is
+  now terminal for `recordWorkPackageProgress` (reversal = new package
+  or note).
+- `summarizeCostsByWorkPackage` (PostgreSQL GROUP BY) feeds the
+  per-package slices; project-wide entries stay in project totals.
+- Deferred as instructed: approved change-order effects on contract
+  value (J-Box COs link to estimate/job, not projects — needs a
+  project↔CO association in Phase 6) and billed-to-date wiring
+  (Phase 6 progress billing).
+
+## 11. Phase 1 scope guardrails
 
 - Additive migration only. No edits to `001`–`023`, no J-Box UI/route
   changes, no global renames.

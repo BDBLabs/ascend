@@ -237,3 +237,20 @@ describe('recordWorkPackageProgress', () => {
     expect(secondCall[0]).not.toContain('work_package_events');
   });
 });
+
+describe('recordWorkPackageProgress terminal guard', () => {
+  beforeEach(() => {
+    queryMock.mockReset();
+  });
+
+  it('refuses progress on a cancelled package without writing', async () => {
+    queryMock.mockResolvedValueOnce([
+      { percent_complete: 30, status: 'cancelled' },
+    ]);
+    const result = await recordWorkPackageProgress('package-1', {
+      percentComplete: 40,
+    });
+    expect(result).toEqual({ ok: false, error: 'terminal' });
+    expect(queryMock).toHaveBeenCalledTimes(1);
+  });
+});

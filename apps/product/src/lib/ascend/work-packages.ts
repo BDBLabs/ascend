@@ -179,13 +179,13 @@ export async function unlinkUnitFromWorkPackage(
 
 export type RecordProgressResult =
   | { ok: true; package: WorkPackageRecord }
-  | { ok: false; error: 'package-not-found' | 'invalid' };
+  | { ok: false; error: 'package-not-found' | 'invalid' | 'terminal' };
 
 /**
  * Records work-package progress: updates percent/status and appends an
- * immutable event row in the same statement set. Terminal-state rules
- * (cancelled packages stay put) arrive with the Phase 5 progress model;
- * completion equivalence is enforced now by the contract + CHECK.
+ * immutable event row in the same statement set. Cancelled packages are
+ * terminal (reversal is a new package or a note); completion equivalence
+ * is enforced by the contract + CHECK.
  */
 export async function recordWorkPackageProgress(
   workPackageId: string,
@@ -201,6 +201,11 @@ export async function recordWorkPackageProgress(
   )) as Array<{ percent_complete: number; status: string }>;
   const from = current[0];
   if (!from) return { ok: false, error: 'package-not-found' };
+  if (from.status === 'cancelled') {
+    // Cancelled is terminal: reversal is a new package or a note, never
+    // a silent rewrite of the cancellation.
+    return { ok: false, error: 'terminal' };
+  }
 
   const toStatus = input.status ?? from.status;
   if (

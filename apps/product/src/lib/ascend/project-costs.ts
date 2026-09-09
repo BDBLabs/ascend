@@ -222,3 +222,43 @@ export async function summarizeProjectCosts(
   }
   return { projectId, buckets, totalsByKind };
 }
+
+export type WorkPackageCostSummary = {
+  workPackageId: string;
+  totals: Record<CostKind, number>;
+};
+
+/**
+ * Per-package cost rollup for progress reporting: one GROUP BY over the
+ * project's package-linked entries. Unlinked (project-wide) entries stay
+ * in the project totals only.
+ */
+export async function summarizeCostsByWorkPackage(
+  projectId: string,
+): Promise<WorkPackageCostSummary[]> {
+  const rows = (await db().query(
+    `SELECT work_package_id, cost_kind, SUM(amount_cents)::bigint AS total_cents
+     FROM project_cost_entries
+     WHERE project_id = $1::uuid AND work_package_id IS NOT NULL
+     GROUP BY work_package_id, cost_kind
+     ORDER BY work_package_id, cost_kind`,
+    [projectId],
+  )) as Array<{
+    work_package_id: string;
+    cost_kind: CostKind;
+    total_cents: string | number;
+  }>;
+  const byPackage = new Map<string, Record<CostKind, number>>();
+  for (const r of rows) {
+    let totals = byPackage.get(r.work_package_id);
+    if (!totals) {
+      totals = { budget: 0, actual: 0, committed: 0, forecast: 0 };
+      byPackage.set(r.work_package_id, totals);
+    }
+    totals[r.cost_kind] = Number(r.total_cents);
+  }
+  return [...byPackage.entries()].map(([workPackageId, totals]) => ({
+    workPackageId,
+    totals,
+  }));
+}

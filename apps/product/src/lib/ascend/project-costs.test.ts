@@ -202,3 +202,35 @@ describe('summarizeProjectCosts', () => {
     expect(summary.buckets).toHaveLength(3);
   });
 });
+
+describe('summarizeCostsByWorkPackage', () => {
+  beforeEach(() => {
+    queryMock.mockReset();
+  });
+
+  it('groups package-linked entries per package and kind', async () => {
+    const { summarizeCostsByWorkPackage } = await import('./project-costs');
+    queryMock.mockResolvedValueOnce([
+      { work_package_id: 'p1', cost_kind: 'actual', total_cents: '300000' },
+      { work_package_id: 'p1', cost_kind: 'budget', total_cents: 450000 },
+      { work_package_id: 'p2', cost_kind: 'actual', total_cents: '10000' },
+    ]);
+
+    const result = await summarizeCostsByWorkPackage(UUID);
+
+    const [sql, params] = queryMock.mock.calls[0] as [string, unknown[]];
+    expect(sql).toContain('GROUP BY work_package_id, cost_kind');
+    expect(sql).toContain('work_package_id IS NOT NULL');
+    expect(params).toEqual([UUID]);
+    expect(result).toEqual([
+      {
+        workPackageId: 'p1',
+        totals: { budget: 450000, actual: 300000, committed: 0, forecast: 0 },
+      },
+      {
+        workPackageId: 'p2',
+        totals: { budget: 0, actual: 10000, committed: 0, forecast: 0 },
+      },
+    ]);
+  });
+});
