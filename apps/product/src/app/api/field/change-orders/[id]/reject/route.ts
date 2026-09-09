@@ -15,7 +15,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const principal = await getFieldPrincipal();
-  if (!fieldPrincipalCan(principal, 'estimates.open')) {
+  if (!fieldPrincipalCan(principal, 'estimates.approve')) {
     return privateJson({ error: 'Unauthorized' }, 401);
   }
   if (!publicRequestIsSameOrigin(request)) {

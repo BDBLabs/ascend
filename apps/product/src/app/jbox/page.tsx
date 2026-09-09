@@ -8,7 +8,7 @@ import { listEstimates } from '@/lib/estimates';
 import { listCustomers } from '@/lib/customers';
 import { listJobs } from '@/lib/jobs';
 import { listInvoices } from '@/lib/invoices';
-import { COLORS, FONT, card, heading, subtitle, muted, link, table, th, td, statusBadge } from '../jbox-tokens';
+import { COLORS, FONT, card, heading, subtitle, muted, link, table, th, td, statusBadge } from './jbox-tokens';
 
 export const dynamic = 'force-dynamic';
 

@@ -151,7 +151,7 @@ export default async function TrackPage({ searchParams }: TrackPageProps) {
             <h1>Live Job Status</h1>
             <p>Enter your tracking code to view the status of your estimates and invoices.</p>
           </div>
-          <StatusStepper type={documents[0]?.type} status={documents[0]?.status} />
+          <StatusStepper />
           <form className={styles.trackForm} action="/track" method="get">
             <input
               type="text"

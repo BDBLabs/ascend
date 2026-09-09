@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { getFieldPrincipal } from '@/lib/field-api-auth';
 import { isFieldAuthConfigured } from '@/lib/identity-environment';
 import { db, isDatabaseConfigured } from '@/lib/db';
-import styles from '../field.module.css';
+import styles from '../../field.module.css';
 
 export const dynamic = 'force-dynamic';
 
