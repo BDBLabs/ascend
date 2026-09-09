@@ -36,17 +36,19 @@ describe('redis-rate-limit fallback behavior', () => {
     expect(result).toBe(false);
   });
 
-  it('rateLimitWithFallback enforces Redis limit when Redis is configured', async () => {
+  it('rateLimitWithFallback enforces limits when Redis is configured', async () => {
     process.env.UPSTASH_REDIS_REST_URL = 'https://mock-redis.upstash.io';
     process.env.UPSTASH_REDIS_REST_TOKEN = 'mock-token';
 
-    const incrMock = vi.fn().mockResolvedValueOnce(1).mockResolvedValueOnce(2).mockResolvedValueOnce(3);
-    const pexpireMock = vi.fn().mockResolvedValue(1);
+    // Redis ALWAYS grants (as it would right after a flush that dropped the
+    // bucket). The local token-bucket backstop must still be consulted, so the
+    // capacity-2 local limit binds on the third call — closing the
+    // short-circuit that previously reset all limits to full after a flush.
+    const evalMock = vi.fn().mockResolvedValue(1);
 
     vi.doMock('@upstash/redis', () => ({
       Redis: class {
-        incr = incrMock;
-        pexpire = pexpireMock;
+        eval = evalMock;
       },
     }));
 
@@ -56,6 +58,25 @@ describe('redis-rate-limit fallback behavior', () => {
 
     expect(await rateLimitWithFallback(key, options)).toBe(true);
     expect(await rateLimitWithFallback(key, options)).toBe(true);
+    expect(await rateLimitWithFallback(key, options)).toBe(false);
+  });
+
+  it('rateLimitWithFallback denies when Redis denies even if local still allows', async () => {
+    process.env.UPSTASH_REDIS_REST_URL = 'https://mock-redis.upstash.io';
+    process.env.UPSTASH_REDIS_REST_TOKEN = 'mock-token';
+
+    const evalMock = vi.fn().mockResolvedValue(0);
+
+    vi.doMock('@upstash/redis', () => ({
+      Redis: class {
+        eval = evalMock;
+      },
+    }));
+
+    const { rateLimitWithFallback } = await import('./redis-rate-limit');
+    const key = 'test-key-redis-deny-1';
+    const options = { capacity: 5, refillPerMinute: 10 };
+
     expect(await rateLimitWithFallback(key, options)).toBe(false);
   });
 });
