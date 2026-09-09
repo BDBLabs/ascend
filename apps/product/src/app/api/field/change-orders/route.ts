@@ -1,7 +1,7 @@
 import type { NextRequest } from 'next/server';
 import { fieldPrincipalCan, getFieldPrincipal, withFieldContext } from '@/lib/field-api-auth';
 import { isDatabaseConfigured } from '@/lib/db';
-import { privateJson } from '@/lib/http';
+import { privateJson, readJsonBody, RequestBodyTooLargeError } from '@/lib/http';
 import { UUID_PATTERN } from '@/lib/ids';
 import { getClientIp } from '@/lib/rate-limit';
 import { publicRequestIsSameOrigin } from '@/lib/request-origin';
@@ -24,27 +24,25 @@ export async function POST(request: NextRequest) {
     return privateJson({ error: 'Change orders unavailable' }, 503);
   }
 
-  const contentLength = request.headers.get('content-length');
-  if (contentLength && (!/^\d+$/.test(contentLength) || Number(contentLength) > MAX_BODY_BYTES)) {
-    return privateJson({ error: 'Bad Request' }, 400);
-  }
-
-  let raw: unknown;
+  let body: unknown;
   try {
-    raw = await request.json();
-  } catch {
+    body = await readJsonBody(request, MAX_BODY_BYTES);
+  } catch (error) {
+    if (error instanceof RequestBodyTooLargeError) {
+      return privateJson({ error: 'Bad Request' }, 400);
+    }
     return privateJson({ error: 'Invalid body' }, 400);
   }
 
-  if (typeof raw !== 'object' || raw === null) {
+  if (typeof body !== 'object' || body === null) {
     return privateJson({ error: 'Body must be an object.' }, 400);
   }
-  const body = raw as Record<string, unknown>;
-  if (typeof body.estimateId !== 'string' || !UUID_PATTERN.test(body.estimateId)) {
+  const record = body as Record<string, unknown>;
+  if (typeof record.estimateId !== 'string' || !UUID_PATTERN.test(record.estimateId)) {
     return privateJson({ error: 'Invalid estimateId' }, 400);
   }
 
-  const validation = validateChangeOrderInput(body);
+  const validation = validateChangeOrderInput(record);
   if (!validation.ok) {
     return privateJson({ error: validation.error }, 400);
   }
@@ -56,7 +54,7 @@ export async function POST(request: NextRequest) {
 
   try {
     return await withFieldContext(principal, async () => {
-      const result = await createChangeOrder(body.estimateId as string, validation.value, ctx);
+      const result = await createChangeOrder(record.estimateId as string, validation.value, ctx);
       if (result.ok) return privateJson({ changeOrder: result.value }, 201);
       const messages = {
         'estimate-not-found': 'Estimate not found.',

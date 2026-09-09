@@ -7,7 +7,7 @@ import {
   getFieldPrincipal,
   withFieldContext,
 } from '@/lib/field-api-auth';
-import { privateJson } from '@/lib/http';
+import { privateJson, readJsonBody, RequestBodyTooLargeError } from '@/lib/http';
 import { publicRequestIsSameOrigin } from '@/lib/request-origin';
 
 export const dynamic = 'force-dynamic';
@@ -49,15 +49,13 @@ export async function POST(request: NextRequest) {
     return privateJson({ error: 'Forbidden' }, 403);
   }
 
-  const contentLength = request.headers.get('content-length');
-  if (contentLength && (!/^\d+$/.test(contentLength) || Number(contentLength) > MAX_BODY_BYTES)) {
-    return privateJson({ error: 'Bad Request' }, 400);
-  }
-
   let body: unknown;
   try {
-    body = await request.json();
-  } catch {
+    body = await readJsonBody(request, MAX_BODY_BYTES);
+  } catch (error) {
+    if (error instanceof RequestBodyTooLargeError) {
+      return privateJson({ error: 'Bad Request' }, 400);
+    }
     return privateJson({ error: 'Invalid body' }, 400);
   }
 

@@ -5,7 +5,7 @@ import {
   getFieldPrincipal,
   withFieldContext,
 } from '@/lib/field-api-auth';
-import { privateJson } from '@/lib/http';
+import { privateJson, readJsonBody, RequestBodyTooLargeError } from '@/lib/http';
 import { UUID_PATTERN } from '@/lib/ids';
 import { getClientIp } from '@/lib/rate-limit';
 import { publicRequestIsSameOrigin } from '@/lib/request-origin';
@@ -64,27 +64,26 @@ export async function POST(request: NextRequest) {
     return privateJson({ error: 'Forbidden' }, 403);
   }
 
-  const contentLength = request.headers.get('content-length');
-  if (contentLength && (!/^\d+$/.test(contentLength) || Number(contentLength) > MAX_BODY_BYTES)) {
-    return privateJson({ error: 'Bad Request' }, 400);
-  }
-
-  let body: Record<string, unknown>;
+  let body: unknown;
   try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
+    body = await readJsonBody(request, MAX_BODY_BYTES);
+  } catch (error) {
+    if (error instanceof RequestBodyTooLargeError) {
+      return privateJson({ error: 'Bad Request' }, 400);
+    }
     return privateJson({ error: 'Invalid body' }, 400);
   }
   if (typeof body !== 'object' || body === null || Array.isArray(body)) {
     return privateJson({ error: 'Body must be an object.' }, 400);
   }
-  if (typeof body.estimateId !== 'string' || !UUID_PATTERN.test(body.estimateId)) {
+  const record = body as Record<string, unknown>;
+  if (typeof record.estimateId !== 'string' || !UUID_PATTERN.test(record.estimateId)) {
     return privateJson({ error: 'Invalid estimateId' }, 400);
   }
-  if (typeof body.expectedUpdatedAt !== 'string' || body.expectedUpdatedAt.length === 0) {
+  if (typeof record.expectedUpdatedAt !== 'string' || record.expectedUpdatedAt.length === 0) {
     return privateJson({ error: 'expectedUpdatedAt is required.' }, 400);
   }
-  const payload = body as { estimateId: string; expectedUpdatedAt: string };
+  const payload = record as { estimateId: string; expectedUpdatedAt: string };
 
   if (!isDatabaseConfigured()) {
     return privateJson({ error: 'Invoices unavailable' }, 503);

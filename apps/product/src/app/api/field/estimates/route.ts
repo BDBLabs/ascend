@@ -13,7 +13,7 @@ import {
   withFieldContext,
 } from '@/lib/field-api-auth';
 import { getClientIp } from '@/lib/rate-limit';
-import { privateJson } from '@/lib/http';
+import { privateJson, readJsonBody, RequestBodyTooLargeError } from '@/lib/http';
 import { UUID_PATTERN } from '@/lib/ids';
 import { publicRequestIsSameOrigin } from '@/lib/request-origin';
 
@@ -88,23 +88,22 @@ export async function POST(request: NextRequest) {
     return privateJson({ error: 'Forbidden' }, 403);
   }
 
-  const contentLength = request.headers.get('content-length');
-  if (contentLength && (!/^\d+$/.test(contentLength) || Number(contentLength) > MAX_BODY_BYTES)) {
-    return privateJson({ error: 'Bad Request' }, 400);
-  }
-
-  let body: Record<string, unknown>;
+  let body: unknown;
   try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
+    body = await readJsonBody(request, MAX_BODY_BYTES);
+  } catch (error) {
+    if (error instanceof RequestBodyTooLargeError) {
+      return privateJson({ error: 'Bad Request' }, 400);
+    }
     return privateJson({ error: 'Invalid body' }, 400);
   }
   if (typeof body !== 'object' || body === null || Array.isArray(body)) {
     return privateJson({ error: 'Body must be an object.' }, 400);
   }
+  const record = body as Record<string, unknown>;
 
-  const hasCustomerId = body.customerId !== undefined && body.customerId !== null;
-  const hasNewCustomer = body.newCustomer !== undefined && body.newCustomer !== null;
+  const hasCustomerId = record.customerId !== undefined && record.customerId !== null;
+  const hasNewCustomer = record.newCustomer !== undefined && record.newCustomer !== null;
   if (hasCustomerId === hasNewCustomer) {
     return privateJson(
       { error: 'Provide exactly one of customerId or newCustomer.' },
@@ -112,16 +111,16 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (hasCustomerId && (typeof body.customerId !== 'string' || !UUID_PATTERN.test(body.customerId))) {
+  if (hasCustomerId && (typeof record.customerId !== 'string' || !UUID_PATTERN.test(record.customerId))) {
     return privateJson({ error: 'Invalid customerId' }, 400);
   }
 
   let serviceRequestId: string | null = null;
-  if (body.serviceRequestId !== undefined && body.serviceRequestId !== null) {
-    if (typeof body.serviceRequestId !== 'string' || !UUID_PATTERN.test(body.serviceRequestId)) {
+  if (record.serviceRequestId !== undefined && record.serviceRequestId !== null) {
+    if (typeof record.serviceRequestId !== 'string' || !UUID_PATTERN.test(record.serviceRequestId)) {
       return privateJson({ error: 'Invalid serviceRequestId' }, 400);
     }
-    serviceRequestId = body.serviceRequestId;
+    serviceRequestId = record.serviceRequestId;
   }
 
   // Validate the new-customer payload before the draft so the caller learns about
@@ -131,13 +130,13 @@ export async function POST(request: NextRequest) {
     if (!fieldPrincipalCan(principal, 'customers.write')) {
       return privateJson({ error: 'Unauthorized' }, 401);
     }
-    newCustomerInput = validateCustomerInput(body.newCustomer);
+    newCustomerInput = validateCustomerInput(record.newCustomer);
     if (!newCustomerInput.ok) {
       return privateJson({ error: newCustomerInput.error, field: newCustomerInput.field }, 400);
     }
   }
 
-  const draft = validateEstimateDraftInput(body.draft);
+  const draft = validateEstimateDraftInput(record.draft);
   if (!draft.ok) return privateJson({ error: draft.error }, 400);
 
   if (!isDatabaseConfigured()) {
@@ -153,7 +152,7 @@ export async function POST(request: NextRequest) {
         // lose the customer details a technician just typed in the field.
         customerId = (await createCustomer(newCustomerInput.value)).id;
       } else {
-        const existing = await getCustomer(body.customerId as string);
+        const existing = await getCustomer(record.customerId as string);
         // customer_id REFERENCES customers(id): without this the insert raises an
         // FK violation and the caller sees 503 instead of "that customer is gone".
         if (!existing) return privateJson({ error: 'Customer not found' }, 404);

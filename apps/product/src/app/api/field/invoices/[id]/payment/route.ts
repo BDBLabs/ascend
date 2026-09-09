@@ -1,8 +1,7 @@
 import type { NextRequest } from 'next/server';
 import { fieldPrincipalCan, getFieldPrincipal, withFieldContext } from '@/lib/field-api-auth';
 import { isDatabaseConfigured } from '@/lib/db';
-import { privateJson } from '@/lib/http';
-import { UUID_PATTERN } from '@/lib/ids';
+import { privateJson, readJsonBody, RequestBodyTooLargeError } from '@/lib/http';
 import { getClientIp } from '@/lib/rate-limit';
 import { publicRequestIsSameOrigin } from '@/lib/request-origin';
 import { recordPayment } from '@/lib/invoices';
@@ -28,22 +27,21 @@ export async function POST(
 
   const { id } = await params;
 
-  const contentLength = request.headers.get('content-length');
-  if (contentLength && (!/^\d+$/.test(contentLength) || Number(contentLength) > MAX_BODY_BYTES)) {
-    return privateJson({ error: 'Bad Request' }, 400);
-  }
-
-  let body: Record<string, unknown>;
+  let body: unknown;
   try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
+    body = await readJsonBody(request, MAX_BODY_BYTES);
+  } catch (error) {
+    if (error instanceof RequestBodyTooLargeError) {
+      return privateJson({ error: 'Bad Request' }, 400);
+    }
     return privateJson({ error: 'Invalid body' }, 400);
   }
+  const record = body as Record<string, unknown>;
 
-  if (typeof body.amountCents !== 'number' || !Number.isInteger(body.amountCents) || body.amountCents <= 0) {
+  if (typeof record.amountCents !== 'number' || !Number.isInteger(record.amountCents) || record.amountCents <= 0) {
     return privateJson({ error: 'amountCents must be a positive integer.' }, 400);
   }
-  if (typeof body.expectedUpdatedAt !== 'string' || body.expectedUpdatedAt.length === 0) {
+  if (typeof record.expectedUpdatedAt !== 'string' || record.expectedUpdatedAt.length === 0) {
     return privateJson({ error: 'expectedUpdatedAt is required.' }, 400);
   }
 
@@ -54,7 +52,7 @@ export async function POST(
 
   try {
     return await withFieldContext(principal, async () => {
-      const result = await recordPayment(id, body.amountCents as number, body.expectedUpdatedAt as string, ctx);
+      const result = await recordPayment(id, record.amountCents as number, record.expectedUpdatedAt as string, ctx);
       if (result.ok) return privateJson({ invoice: result.value });
       if (result.reason === 'not-found') return privateJson({ error: 'Not found' }, 404);
       if (result.reason === 'not-issuable') return privateJson({ error: 'Invoice must be issued or partially paid to record payment.' }, 409);

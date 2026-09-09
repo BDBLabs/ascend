@@ -11,7 +11,7 @@ import {
   getFieldPrincipal,
   withFieldContext,
 } from '@/lib/field-api-auth';
-import { privateJson } from '@/lib/http';
+import { privateJson, readJsonBody, RequestBodyTooLargeError } from '@/lib/http';
 import { UUID_PATTERN as ID_PATTERN } from '@/lib/ids';
 import { validateJobInput } from '@/lib/job-contract';
 import { publicRequestIsSameOrigin } from '@/lib/request-origin';
@@ -72,25 +72,21 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   const { id } = await params;
   if (!ID_PATTERN.test(id)) return privateJson({ error: 'Not found' }, 404);
 
-  const contentLength = request.headers.get('content-length');
-  if (
-    contentLength
-    && (!/^\d+$/.test(contentLength) || Number(contentLength) > MAX_BODY_BYTES)
-  ) {
-    return privateJson({ error: 'Bad Request' }, 400);
-  }
-
-  let body: Record<string, unknown>;
+  let body: unknown;
   try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
+    body = await readJsonBody(request, MAX_BODY_BYTES);
+  } catch (error) {
+    if (error instanceof RequestBodyTooLargeError) {
+      return privateJson({ error: 'Bad Request' }, 400);
+    }
     return privateJson({ error: 'Invalid body' }, 400);
   }
   if (typeof body !== 'object' || body === null || Array.isArray(body)) {
     return privateJson({ error: 'Body must be an object.' }, 400);
   }
+  const record = body as Record<string, unknown>;
 
-  const expectedUpdatedAt = body.expectedUpdatedAt;
+  const expectedUpdatedAt = record.expectedUpdatedAt;
   if (
     typeof expectedUpdatedAt !== 'string'
     || expectedUpdatedAt === ''
@@ -99,8 +95,8 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     return privateJson({ error: 'expectedUpdatedAt is required.' }, 400);
   }
 
-  const hasJobId = body.jobId !== undefined && body.jobId !== null;
-  const hasNewJob = body.newJob !== undefined && body.newJob !== null;
+  const hasJobId = record.jobId !== undefined && record.jobId !== null;
+  const hasNewJob = record.newJob !== undefined && record.newJob !== null;
   if (hasJobId === hasNewJob) {
     return privateJson({ error: 'Provide exactly one of jobId or newJob.' }, 400);
   }
@@ -108,12 +104,12 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   let jobId: string | null = null;
   let newJob: ReturnType<typeof validateJobInput> | null = null;
   if (hasJobId) {
-    if (typeof body.jobId !== 'string' || !ID_PATTERN.test(body.jobId)) {
+    if (typeof record.jobId !== 'string' || !ID_PATTERN.test(record.jobId)) {
       return privateJson({ error: 'Invalid jobId' }, 400);
     }
-    jobId = body.jobId;
+    jobId = record.jobId;
   } else {
-    newJob = validateJobInput(body.newJob);
+    newJob = validateJobInput(record.newJob);
     if (!newJob.ok) {
       return privateJson({ error: newJob.error, field: newJob.field }, 400);
     }

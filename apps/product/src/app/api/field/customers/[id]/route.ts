@@ -7,7 +7,7 @@ import {
   getFieldPrincipal,
   withFieldContext,
 } from '@/lib/field-api-auth';
-import { privateJson } from '@/lib/http';
+import { privateJson, readJsonBody, RequestBodyTooLargeError } from '@/lib/http';
 import { UUID_PATTERN } from '@/lib/ids';
 import { publicRequestIsSameOrigin } from '@/lib/request-origin';
 
@@ -64,27 +64,26 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     return privateJson({ error: 'Customer not found' }, 404);
   }
 
-  const contentLength = request.headers.get('content-length');
-  if (contentLength && (!/^\d+$/.test(contentLength) || Number(contentLength) > MAX_BODY_BYTES)) {
-    return privateJson({ error: 'Bad Request' }, 400);
-  }
-
-  let body: Record<string, unknown>;
+  let body: unknown;
   try {
-    body = await request.json() as Record<string, unknown>;
-  } catch {
+    body = await readJsonBody(request, MAX_BODY_BYTES);
+  } catch (error) {
+    if (error instanceof RequestBodyTooLargeError) {
+      return privateJson({ error: 'Bad Request' }, 400);
+    }
     return privateJson({ error: 'Invalid body' }, 400);
   }
   if (typeof body !== 'object' || body === null || Array.isArray(body)) {
     return privateJson({ error: 'Body must be an object.' }, 400);
   }
+  const record = body as Record<string, unknown>;
 
-  const validation = validateCustomerInput(body.customer);
+  const validation = validateCustomerInput(record.customer);
   if (!validation.ok) {
     return privateJson({ error: validation.error, field: validation.field }, 400);
   }
 
-  const expectedUpdatedAt = body.expectedUpdatedAt;
+  const expectedUpdatedAt = record.expectedUpdatedAt;
   if (
     typeof expectedUpdatedAt !== 'string'
     || expectedUpdatedAt.length > 80

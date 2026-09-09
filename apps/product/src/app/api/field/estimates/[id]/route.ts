@@ -8,7 +8,7 @@ import {
   getFieldPrincipal,
   withFieldContext,
 } from '@/lib/field-api-auth';
-import { privateJson } from '@/lib/http';
+import { privateJson, readJsonBody, RequestBodyTooLargeError } from '@/lib/http';
 import { UUID_PATTERN as ID_PATTERN } from '@/lib/ids';
 import { publicRequestIsSameOrigin } from '@/lib/request-origin';
 
@@ -56,30 +56,29 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   const { id } = await params;
   if (!ID_PATTERN.test(id)) return privateJson({ error: 'Not found' }, 404);
 
-  const contentLength = request.headers.get('content-length');
-  if (contentLength && (!/^\d+$/.test(contentLength) || Number(contentLength) > MAX_BODY_BYTES)) {
-    return privateJson({ error: 'Bad Request' }, 400);
-  }
-
-  let body: Record<string, unknown>;
+  let body: unknown;
   try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
+    body = await readJsonBody(request, MAX_BODY_BYTES);
+  } catch (error) {
+    if (error instanceof RequestBodyTooLargeError) {
+      return privateJson({ error: 'Bad Request' }, 400);
+    }
     return privateJson({ error: 'Invalid body' }, 400);
   }
   if (typeof body !== 'object' || body === null || Array.isArray(body)) {
     return privateJson({ error: 'Body must be an object.' }, 400);
   }
+  const record = body as Record<string, unknown>;
 
   // updateEstimate compares this against the stored updated_at. A missing token
   // could not match anything, so passing it through would yield a 409 the caller
   // can never clear by reloading — that is a malformed request, not a conflict.
-  const expectedUpdatedAt = body.expectedUpdatedAt;
+  const expectedUpdatedAt = record.expectedUpdatedAt;
   if (typeof expectedUpdatedAt !== 'string' || expectedUpdatedAt === '') {
     return privateJson({ error: 'expectedUpdatedAt is required.' }, 400);
   }
 
-  const draft = validateEstimateDraftInput(body.draft);
+  const draft = validateEstimateDraftInput(record.draft);
   if (!draft.ok) return privateJson({ error: draft.error }, 400);
 
   if (!isDatabaseConfigured()) {

@@ -2,7 +2,7 @@ import type { NextRequest } from 'next/server';
 import { decideCustomerEstimate } from '@/lib/customer-estimate-decision';
 import { isDatabaseConfigured } from '@/lib/db';
 import { customerAccessTokensConfigured } from '@/lib/customer-access-tokens';
-import { privateJson } from '@/lib/http';
+import { privateJson, readJsonBody, RequestBodyTooLargeError } from '@/lib/http';
 import { getClientIp, rateLimit } from '@/lib/rate-limit';
 import { publicRequestIsSameOrigin } from '@/lib/request-origin';
 import { TenantResolutionError, withTenant } from '@/lib/tenant';
@@ -23,12 +23,14 @@ export async function POST(
   if (!publicRequestIsSameOrigin(request)) {
     return privateJson({ error: 'Forbidden' }, 403);
   }
-  const contentLength = request.headers.get('content-length');
-  if (
-    contentLength
-    && (!/^\d+$/.test(contentLength) || Number(contentLength) > MAX_BODY_BYTES)
-  ) {
-    return privateJson({ error: 'Bad Request' }, 400);
+  let body: unknown;
+  try {
+    body = await readJsonBody(request, MAX_BODY_BYTES);
+  } catch (error) {
+    if (error instanceof RequestBodyTooLargeError) {
+      return privateJson({ error: 'Bad Request' }, 400);
+    }
+    return privateJson({ error: 'Invalid body' }, 400);
   }
 
   const { token } = await params;
@@ -37,14 +39,9 @@ export async function POST(
     return privateJson({ error: 'Please wait before trying again.' }, 429);
   }
 
-  let body: Record<string, unknown>;
-  try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
-    return privateJson({ error: 'Invalid body' }, 400);
-  }
-  const decision = body.decision === 'approved' || body.decision === 'declined'
-    ? body.decision
+  const record = body as Record<string, unknown>;
+  const decision = record.decision === 'approved' || record.decision === 'declined'
+    ? record.decision
     : null;
   if (!decision) return privateJson({ error: 'Invalid decision.' }, 400);
 
@@ -52,8 +49,8 @@ export async function POST(
     try {
       const result = await decideCustomerEstimate(token, {
         decision,
-        signerName: typeof body.signerName === 'string' ? body.signerName : '',
-        affirmativeConsent: body.affirmativeConsent === true,
+        signerName: typeof record.signerName === 'string' ? record.signerName : '',
+        affirmativeConsent: record.affirmativeConsent === true,
         ip: clientIp.slice(0, 128),
         userAgent: request.headers.get('user-agent'),
       });

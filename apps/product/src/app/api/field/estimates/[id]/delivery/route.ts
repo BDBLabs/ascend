@@ -10,7 +10,7 @@ import {
   getFieldPrincipal,
   withFieldContext,
 } from '@/lib/field-api-auth';
-import { privateJson } from '@/lib/http';
+import { privateJson, readJsonBody, RequestBodyTooLargeError } from '@/lib/http';
 import { UUID_PATTERN } from '@/lib/ids';
 import { publicRequestIsSameOrigin } from '@/lib/request-origin';
 
@@ -55,19 +55,17 @@ export async function POST(
     return privateJson({ error: 'Not found' }, 404);
   }
 
-  const contentLength = request.headers.get('content-length');
-  if (
-    contentLength
-    && (!/^\d+$/.test(contentLength) || Number(contentLength) > MAX_BODY_BYTES)
-  ) {
-    return privateJson({ error: 'Bad Request' }, 400);
-  }
   let timeZone = DEFAULT_ESTIMATE_TIME_ZONE;
   try {
-    const body = (await request.json()) as Record<string, unknown>;
-    timeZone = validTimeZone(body.timeZone);
-  } catch {
-    // Empty body: the tenant's default time zone is used.
+    const body = await readJsonBody(request, MAX_BODY_BYTES);
+    if (body !== null && typeof body === 'object' && !Array.isArray(body)) {
+      const record = body as Record<string, unknown>;
+      timeZone = validTimeZone(record.timeZone);
+    }
+  } catch (error) {
+    if (error instanceof RequestBodyTooLargeError) {
+      return privateJson({ error: 'Bad Request' }, 400);
+    }
   }
 
   try {

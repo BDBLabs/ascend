@@ -7,7 +7,7 @@ import {
   getFieldPrincipal,
   withFieldContext,
 } from '@/lib/field-api-auth';
-import { privateJson } from '@/lib/http';
+import { privateJson, readJsonBody, RequestBodyTooLargeError } from '@/lib/http';
 import { UUID_PATTERN as ID_PATTERN } from '@/lib/ids';
 import { publicRequestIsSameOrigin } from '@/lib/request-origin';
 
@@ -33,28 +33,27 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   const { id } = await params;
   if (!ID_PATTERN.test(id)) return privateJson({ error: 'Not found' }, 404);
 
-  const contentLength = request.headers.get('content-length');
-  if (contentLength && (!/^\d+$/.test(contentLength) || Number(contentLength) > MAX_BODY_BYTES)) {
-    return privateJson({ error: 'Bad Request' }, 400);
-  }
-
-  let body: Record<string, unknown>;
+  let body: unknown;
   try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
+    body = await readJsonBody(request, MAX_BODY_BYTES);
+  } catch (error) {
+    if (error instanceof RequestBodyTooLargeError) {
+      return privateJson({ error: 'Bad Request' }, 400);
+    }
     return privateJson({ error: 'Invalid body' }, 400);
   }
   if (typeof body !== 'object' || body === null || Array.isArray(body)) {
     return privateJson({ error: 'Body must be an object.' }, 400);
   }
+  const record = body as Record<string, unknown>;
 
-  const signerName = typeof body.signerName === 'string' ? body.signerName.trim() : '';
+  const signerName = typeof record.signerName === 'string' ? record.signerName.trim() : '';
   if (signerName.length < 1 || signerName.length > MAX_SIGNER_NAME) {
     return privateJson({ error: 'A signer name is required.', field: 'signerName' }, 400);
   }
 
-  const signatureImage = typeof body.signatureImage === 'string' && body.signatureImage.length > 0
-    ? body.signatureImage
+  const signatureImage = typeof record.signatureImage === 'string' && record.signatureImage.length > 0
+    ? record.signatureImage
     : null;
   if (signatureImage !== null && (
     !signatureImage.startsWith('data:image/') || signatureImage.length > MAX_SIGNATURE_IMAGE
