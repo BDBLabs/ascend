@@ -45,11 +45,27 @@ export function proxy(request: NextRequest) {
 
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set('x-nonce', nonce);
+  // Final served path, after rewrites below: layouts use it to exempt
+  // the login route from the signed-out access panel. Set from the
+  // rewritten URL further down, not here.
+  const setPathname = (pathname: string) => {
+    requestHeaders.set('x-pathname', pathname);
+  };
 
   const init = { request: { headers: requestHeaders } };
 
   const next = (): NextResponse => {
+    setPathname(request.nextUrl.pathname);
     const response = NextResponse.next(init);
+    response.headers.set('Content-Security-Policy', buildCsp(nonce));
+    return response;
+  };
+
+  const rewrite = (pathname: string): NextResponse => {
+    const url = request.nextUrl.clone();
+    url.pathname = pathname;
+    setPathname(pathname);
+    const response = NextResponse.rewrite(url, init);
     response.headers.set('Content-Security-Policy', buildCsp(nonce));
     return response;
   };
@@ -78,11 +94,7 @@ export function proxy(request: NextRequest) {
     request.nextUrl.pathname === '/' &&
     process.env.ASCEND_ROOT_IS_FIELD_LOGIN === '1'
   ) {
-    const url = request.nextUrl.clone();
-    url.pathname = '/field/login';
-    const response = NextResponse.rewrite(url, init);
-    response.headers.set('Content-Security-Policy', buildCsp(nonce));
-    return response;
+    return rewrite('/field/login');
   }
 
   if (request.nextUrl.pathname.startsWith('/api/')) {
@@ -108,12 +120,7 @@ export function proxy(request: NextRequest) {
     return next();
   }
 
-  const url = request.nextUrl.clone();
-  url.pathname = `/platform${pathname === '/' ? '' : pathname}`;
-  url.search = request.nextUrl.search;
-  const response = NextResponse.rewrite(url, init);
-  response.headers.set('Content-Security-Policy', buildCsp(nonce));
-  return response;
+  return rewrite(`/platform${pathname === '/' ? '' : pathname}`);
 }
 
 export const config = {

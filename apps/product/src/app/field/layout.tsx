@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { headers } from 'next/headers';
 import Link from 'next/link';
 import { brandFieldEyebrow, brandName } from '@/lib/brand';
 import { getFieldPrincipal } from '@/lib/field-api-auth';
@@ -56,6 +57,15 @@ async function getSubscriptionStatus(organizationId: string): Promise<string | n
 
 export default async function FieldLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const principal = await getFieldPrincipal();
+
+  // The sign-in form must render for signed-out visitors: without this
+  // exemption the access panel below would swallow /field/login itself
+  // and its "Sign in" link would loop back to the same panel. The proxy
+  // supplies the post-rewrite path via x-pathname.
+  const pathname = (await headers()).get('x-pathname');
+  if (pathname === '/field/login') {
+    return <>{children}</>;
+  }
 
   if (!principal) {
     if (isFieldAuthConfigured()) {
