@@ -126,7 +126,29 @@ to `contractor_app`, indexes leading with `organization_id`.
 - Deferred as instructed: earned value, forecasting, billing (Phases
   5–6); terminal-state rules for cancelled packages (Phase 5).
 
-## 8. Phase 1 scope guardrails
+## 8. Phase 3 — project costs (migration `026`, committed)
+
+- `project_cost_entries`: one ledger with `cost_kind`
+  (budget|actual|committed|forecast) × `cost_category`
+  (material|labor|subcontract|freight|engineering|permits|testing|other),
+  integer-cent amounts, optional project/elevator/package links (unit and
+  package links SET NULL on delete so the money trail survives),
+  cost date, source ref, actor, description.
+- Labor is first-class: integer-hundredths hours + integer-cent rates,
+  amount authoritative; `recordLaborCost` derives it half-up in integer
+  arithmetic. Burden is carried in the rate (no separate multiplier yet).
+- Posted `actual` rows are immutable via
+  `restrict_posted_cost_mutation()` trigger — corrections are new
+  entries. Budget/committed/forecast stay revisable as planning figures;
+  committed-amendment history is a Phase 6 open item.
+- Server modules: `lib/ascend/project-cost-contract.ts`,
+  `lib/ascend/project-costs.ts` (`recordCostEntry`,
+  `recordLaborCost`, filtered lists, `summarizeProjectCosts` with
+  PostgreSQL-side GROUP BY rollups into per-lens totals).
+- Deferred as instructed: earned value / margin math (Phase 5),
+  billing integration (Phase 6).
+
+## 9. Phase 1 scope guardrails
 
 - Additive migration only. No edits to `001`–`023`, no J-Box UI/route
   changes, no global renames.

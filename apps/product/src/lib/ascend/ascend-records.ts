@@ -4,6 +4,7 @@
  */
 import type { ElevatorType, ProjectStatus } from './ascend-contract';
 import type { WorkPackageStatus } from './work-package-contract';
+import type { CostCategory, CostKind } from './project-cost-contract';
 
 type Row = Record<string, unknown>;
 
@@ -207,6 +208,55 @@ export function mapWorkPackage(r: Row): WorkPackageRecord {
     responsiblePerson: (r.responsible_person as string) ?? '',
     notes: (r.notes as string) ?? '',
     elevatorUnitIds,
+    createdAt: timestampToken(r, 'created_at'),
+    updatedAt: timestampToken(r, 'updated_at'),
+  };
+}
+
+export type ProjectCostEntryRecord = {
+  id: string;
+  projectId: string;
+  projectDisplayId: string;
+  elevatorUnitId: string | null;
+  elevatorUnitNumber: string | null;
+  workPackageId: string | null;
+  workPackageName: string | null;
+  costKind: CostKind;
+  costCategory: CostCategory;
+  /** Integer cents, authoritative. */
+  amountCents: number;
+  /** Integer hundredths of an hour, labor only. */
+  laborHoursHundredths: number | null;
+  laborRateCentsPerHour: number | null;
+  costDate: string | null;
+  sourceType: string;
+  sourceRef: string;
+  actorId: string | null;
+  description: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export function mapProjectCostEntry(r: Row): ProjectCostEntryRecord {
+  return {
+    id: r.id as string,
+    projectId: r.project_id as string,
+    projectDisplayId: (r.project_display_id as string) ?? '',
+    elevatorUnitId: (r.elevator_unit_id as string | null) ?? null,
+    elevatorUnitNumber: (r.elevator_unit_number as string | null) ?? null,
+    workPackageId: (r.work_package_id as string | null) ?? null,
+    workPackageName: (r.work_package_name as string | null) ?? null,
+    costKind: r.cost_kind as CostKind,
+    costCategory: r.cost_category as CostCategory,
+    amountCents: Number(r.amount_cents ?? 0),
+    laborHoursHundredths: (r.labor_hours_hundredths as number | null) ?? null,
+    laborRateCentsPerHour:
+      (r.labor_rate_cents_per_hour as number | null) ?? null,
+    costDate: toIsoDate(r.cost_date),
+    sourceType: (r.source_type as string) ?? '',
+    sourceRef: (r.source_ref as string) ?? '',
+    actorId: (r.actor_id as string | null) ?? null,
+    description: (r.description as string) ?? '',
     createdAt: timestampToken(r, 'created_at'),
     updatedAt: timestampToken(r, 'updated_at'),
   };
