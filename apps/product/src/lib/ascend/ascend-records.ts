@@ -1,0 +1,160 @@
+/**
+ * Ascend Phase 1 row mappers. Same token convention as jobs.ts/customers.ts:
+ * prefer the exact `to_json(...)` token, fall back to the raw value.
+ */
+import type { ElevatorType, ProjectStatus } from './ascend-contract';
+
+type Row = Record<string, unknown>;
+
+export const timestampToken = (
+  row: Row,
+  column: 'created_at' | 'updated_at',
+): string => {
+  const exactToken = row[`${column}_token`];
+  if (typeof exactToken === 'string') return exactToken;
+  const value = row[column];
+  if (value instanceof Date) return value.toISOString();
+  return String(value ?? '');
+};
+
+export type BuildingRecord = {
+  id: string;
+  customerId: string;
+  customerName: string;
+  name: string;
+  address: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  primaryContact: string;
+  contactPhone: string;
+  contactEmail: string;
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export function mapBuilding(r: Row): BuildingRecord {
+  return {
+    id: r.id as string,
+    customerId: r.customer_id as string,
+    customerName: (r.customer_name as string) ?? '',
+    name: r.name as string,
+    address: (r.address as string) ?? '',
+    city: (r.city as string) ?? '',
+    state: (r.state as string) ?? '',
+    postalCode: (r.postal_code as string) ?? '',
+    primaryContact: (r.primary_contact as string) ?? '',
+    contactPhone: (r.contact_phone as string) ?? '',
+    contactEmail: (r.contact_email as string) ?? '',
+    notes: (r.notes as string) ?? '',
+    createdAt: timestampToken(r, 'created_at'),
+    updatedAt: timestampToken(r, 'updated_at'),
+  };
+}
+
+export type ElevatorUnitRecord = {
+  id: string;
+  buildingId: string;
+  buildingName: string;
+  unitNumber: string;
+  elevatorNumber: string;
+  manufacturer: string;
+  model: string;
+  serialNumber: string;
+  elevatorType: ElevatorType | '';
+  ratedLoadLbs: number | null;
+  ratedSpeedFpm: number | null;
+  stops: number | null;
+  floorsServed: string;
+  controllerManufacturer: string;
+  controllerModel: string;
+  driveManufacturer: string;
+  driveModel: string;
+  doorOperatorManufacturer: string;
+  doorOperatorModel: string;
+  existingCondition: string;
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export function mapElevatorUnit(r: Row): ElevatorUnitRecord {
+  return {
+    id: r.id as string,
+    buildingId: r.building_id as string,
+    buildingName: (r.building_name as string) ?? '',
+    unitNumber: r.unit_number as string,
+    elevatorNumber: (r.elevator_number as string) ?? '',
+    manufacturer: (r.manufacturer as string) ?? '',
+    model: (r.model as string) ?? '',
+    serialNumber: (r.serial_number as string) ?? '',
+    elevatorType: (r.elevator_type as ElevatorType | '') ?? '',
+    ratedLoadLbs: (r.rated_load_lbs as number | null) ?? null,
+    ratedSpeedFpm: (r.rated_speed_fpm as number | null) ?? null,
+    stops: (r.stops as number | null) ?? null,
+    floorsServed: (r.floors_served as string) ?? '',
+    controllerManufacturer: (r.controller_manufacturer as string) ?? '',
+    controllerModel: (r.controller_model as string) ?? '',
+    driveManufacturer: (r.drive_manufacturer as string) ?? '',
+    driveModel: (r.drive_model as string) ?? '',
+    doorOperatorManufacturer: (r.door_operator_manufacturer as string) ?? '',
+    doorOperatorModel: (r.door_operator_model as string) ?? '',
+    existingCondition: (r.existing_condition as string) ?? '',
+    notes: (r.notes as string) ?? '',
+    createdAt: timestampToken(r, 'created_at'),
+    updatedAt: timestampToken(r, 'updated_at'),
+  };
+}
+
+export type ModernizationProjectRecord = {
+  id: string;
+  displayId: string;
+  customerId: string;
+  customerName: string;
+  buildingId: string | null;
+  buildingName: string | null;
+  status: ProjectStatus;
+  /** Integer cents. Phase 1 carries the contract value only; budget/actual/
+   * committed/forecast arrive in Phase 3. */
+  contractValueCents: number;
+  projectManager: string;
+  startDate: string | null;
+  targetCompletionDate: string | null;
+  actualCompletionDate: string | null;
+  notes: string;
+  elevatorUnitIds: string[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+const toIsoDate = (v: unknown): string | null => {
+  if (v === null || v === undefined) return null;
+  if (v instanceof Date) return v.toISOString().slice(0, 10);
+  return String(v);
+};
+
+export function mapModernizationProject(r: Row): ModernizationProjectRecord {
+  const rawUnits = r.elevator_unit_ids;
+  const elevatorUnitIds = Array.isArray(rawUnits)
+    ? (rawUnits.filter((v) => typeof v === 'string') as string[])
+    : [];
+  return {
+    id: r.id as string,
+    displayId: r.display_id as string,
+    customerId: r.customer_id as string,
+    customerName: (r.customer_name as string) ?? '',
+    buildingId: (r.building_id as string | null) ?? null,
+    buildingName: (r.building_name as string | null) ?? null,
+    status: r.status as ProjectStatus,
+    contractValueCents: Number(r.contract_value_cents ?? 0),
+    projectManager: (r.project_manager as string) ?? '',
+    startDate: toIsoDate(r.start_date),
+    targetCompletionDate: toIsoDate(r.target_completion_date),
+    actualCompletionDate: toIsoDate(r.actual_completion_date),
+    notes: (r.notes as string) ?? '',
+    elevatorUnitIds,
+    createdAt: timestampToken(r, 'created_at'),
+    updatedAt: timestampToken(r, 'updated_at'),
+  };
+}
