@@ -19,20 +19,40 @@ export const dynamic = 'force-dynamic';
  * A hidden honeypot field ('company_website') catches bots: a filled value is
  * answered with a success-shaped response and writes nothing.
  */
+/**
+ * True when the raw request body carries a populated `company_website` honeypot
+ * field. Checked on the RAW body, not after JSON parsing, so that a bot sending
+ * an imperfectly-formed payload is still answered with the success-shaped
+ * response instead of tripping a JSON 400 (see #39).
+ */
+/** Exported for tests; used only by the onboarding POST handler. */
+export function honeypotTriggered(raw: string): boolean {
+  const match = /"?company_website"?\s*[:=]\s*"([^"]*)"/.exec(raw);
+  return Boolean(match && match[1].trim().length > 0);
+}
+
 export async function POST(request: NextRequest) {
   const ip = getClientIp(request);
 
-  let body: unknown;
+  let raw: string;
   try {
-    body = await request.json();
+    raw = await request.text();
   } catch {
     return Response.json({ ok: false, error: 'request body must be JSON' }, { status: 400 });
   }
 
-  const record = body as Record<string, unknown> | null;
-  const honeypot = typeof record?.company_website === 'string' && record.company_website.trim();
-  if (honeypot) {
+  // Fire the honeypot on the raw body BEFORE requiring valid JSON or running the
+  // rate limiter, so bots are quietly answered without consuming provisioning
+  // work or a rate-limit slot.
+  if (honeypotTriggered(raw)) {
     return Response.json({ ok: true, tenant: null }, { status: 201 });
+  }
+
+  let body: unknown;
+  try {
+    body = JSON.parse(raw) as unknown;
+  } catch {
+    return Response.json({ ok: false, error: 'request body must be JSON' }, { status: 400 });
   }
 
   if (!(await rateLimitWithFallback(`onboarding:submit:${ip}`, { capacity: 5, refillPerMinute: 0.1 }))) {
