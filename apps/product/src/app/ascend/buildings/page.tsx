@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation';
 import { getFieldPrincipal, withFieldContext } from '@/lib/field-api-auth';
 import { isDatabaseConfigured } from '@/lib/db';
 import { listBuildings } from '@/lib/ascend/buildings';
+import { listCustomers } from '@/lib/customers';
+import { NewBuildingForm } from '../_forms/site';
 import {
   card,
   heading,
@@ -29,8 +31,12 @@ export default async function AscendBuildingsPage() {
     );
   }
 
-  const buildings = await withFieldContext(principal, async () =>
-    listBuildings({ limit: 100 }),
+  const { buildings, customers } = await withFieldContext(
+    principal,
+    async () => ({
+      buildings: await listBuildings({ limit: 100 }),
+      customers: await listCustomers(''),
+    }),
   );
 
   return (
@@ -39,6 +45,8 @@ export default async function AscendBuildingsPage() {
       <p style={subtitle}>
         Customer sites where elevator units live and modernization happens.
       </p>
+
+      <NewBuildingForm customers={customers} />
 
       {buildings.length === 0 ? (
         <p style={muted}>No buildings yet.</p>

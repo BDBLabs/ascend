@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation';
 import { getFieldPrincipal, withFieldContext } from '@/lib/field-api-auth';
 import { isDatabaseConfigured } from '@/lib/db';
 import { listElevatorUnits } from '@/lib/ascend/elevator-units';
+import { listBuildings } from '@/lib/ascend/buildings';
+import { NewUnitForm } from '../_forms/site';
 import {
   card,
   heading,
@@ -30,8 +32,12 @@ export default async function AscendElevatorsPage() {
     );
   }
 
-  const units = await withFieldContext(principal, async () =>
-    listElevatorUnits({ limit: 100 }),
+  const { units, buildings } = await withFieldContext(
+    principal,
+    async () => ({
+      units: await listElevatorUnits({ limit: 100 }),
+      buildings: await listBuildings({ limit: 100 }),
+    }),
   );
 
   return (
@@ -40,6 +46,8 @@ export default async function AscendElevatorsPage() {
       <p style={subtitle}>
         Every car under modernization — survey data, equipment, condition.
       </p>
+
+      <NewUnitForm buildings={buildings} />
 
       {units.length === 0 ? (
         <p style={muted}>No elevator units yet.</p>

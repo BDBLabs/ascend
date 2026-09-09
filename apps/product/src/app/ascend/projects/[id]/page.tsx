@@ -7,7 +7,19 @@ import { getModernizationProject } from '@/lib/ascend/modernization-projects';
 import { listWorkPackages } from '@/lib/ascend/work-packages';
 import { summarizeProjectCosts } from '@/lib/ascend/project-costs';
 import { listProjectParts } from '@/lib/ascend/project-parts';
-import { getElevatorUnit } from '@/lib/ascend/elevator-units';
+import { getElevatorUnit, listElevatorUnits } from '@/lib/ascend/elevator-units';
+import {
+  LinkUnitsControl,
+  NewPackageForm,
+  ProgressForm,
+} from '../../_forms/packages';
+import { NewCostForm, NewPartForm, PartUpdateForm } from '../../_forms/costs-parts';
+import {
+  ApplicationActions,
+  NewApplicationForm,
+  NewPeriodForm,
+  ScheduleForm,
+} from '../../_forms/billing';
 import {
   getBillingSchedule,
   listApplications,
@@ -82,6 +94,7 @@ export default async function AscendProjectDetailPage({ params }: PageProps) {
       periods,
       applications,
       units,
+      allUnits,
     ] = await Promise.all([
       getProjectProgress(id),
       listWorkPackages({ projectId: id, limit: 100 }),
@@ -91,12 +104,13 @@ export default async function AscendProjectDetailPage({ params }: PageProps) {
       listBillingPeriods(id),
       listApplications(id),
       Promise.all(project.elevatorUnitIds.map((u) => getElevatorUnit(u))),
+      listElevatorUnits({ limit: 100 }),
     ]);
-    return { project, progress, packages, costs, parts, schedule, periods, applications, units };
+    return { project, progress, packages, costs, parts, schedule, periods, applications, units, allUnits };
   });
 
   if (!data) notFound();
-  const { project, progress, packages, costs, parts, schedule, periods, applications, units } = data;
+  const { project, progress, packages, costs, parts, schedule, periods, applications, units, allUnits } = data;
 
   return (
     <div style={page}>
@@ -168,6 +182,11 @@ export default async function AscendProjectDetailPage({ params }: PageProps) {
       </div>
 
       <h2 style={sectionTitle}>Elevator units ({units.length})</h2>
+      <LinkUnitsControl
+        projectId={project.id}
+        linkedUnitIds={project.elevatorUnitIds}
+        units={allUnits}
+      />
       {units.length === 0 ? (
         <p style={muted}>No units linked.</p>
       ) : (
@@ -210,6 +229,7 @@ export default async function AscendProjectDetailPage({ params }: PageProps) {
       )}
 
       <h2 style={sectionTitle}>Work packages ({packages.length})</h2>
+      <NewPackageForm projectId={project.id} />
       {packages.length === 0 ? (
         <p style={muted}>No work packages yet.</p>
       ) : (
@@ -223,6 +243,7 @@ export default async function AscendProjectDetailPage({ params }: PageProps) {
                 <th style={{ ...th, textAlign: 'right' }}>Budget</th>
                 <th style={{ ...th, textAlign: 'right' }}>Sell</th>
                 <th style={th}>Responsible</th>
+                <th style={th}>Report</th>
               </tr>
             </thead>
             <tbody>
@@ -242,6 +263,9 @@ export default async function AscendProjectDetailPage({ params }: PageProps) {
                     {formatCents(w.contractValueCents)}
                   </td>
                   <td style={td}>{w.responsiblePerson || '—'}</td>
+                  <td style={td}>
+                    <ProgressForm workPackage={w} />
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -250,6 +274,7 @@ export default async function AscendProjectDetailPage({ params }: PageProps) {
       )}
 
       <h2 style={sectionTitle}>Costs by lens × category</h2>
+      <NewCostForm projectId={project.id} packages={packages} units={allUnits} />
       {costs.buckets.length === 0 ? (
         <p style={muted}>No cost entries yet.</p>
       ) : (
@@ -280,6 +305,7 @@ export default async function AscendProjectDetailPage({ params }: PageProps) {
       )}
 
       <h2 style={sectionTitle}>Parts ({parts.length})</h2>
+      <NewPartForm projectId={project.id} packages={packages} units={allUnits} />
       {parts.length === 0 ? (
         <p style={muted}>No parts specified yet.</p>
       ) : (
@@ -293,6 +319,7 @@ export default async function AscendProjectDetailPage({ params }: PageProps) {
                 <th style={{ ...th, textAlign: 'right' }}>Received</th>
                 <th style={{ ...th, textAlign: 'right' }}>Installed</th>
                 <th style={th}>Supplier</th>
+                <th style={th}>Update</th>
               </tr>
             </thead>
             <tbody>
@@ -314,6 +341,9 @@ export default async function AscendProjectDetailPage({ params }: PageProps) {
                     {(p.quantityInstalledHundredths / 100).toLocaleString()}
                   </td>
                   <td style={td}>{p.supplier || '—'}</td>
+                  <td style={td}>
+                    <PartUpdateForm part={p} />
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -322,6 +352,22 @@ export default async function AscendProjectDetailPage({ params }: PageProps) {
       )}
 
       <h2 style={sectionTitle}>Billing</h2>
+      <ScheduleForm
+        projectId={project.id}
+        currentPercent={schedule ? schedule.retainagePercent : null}
+      />
+      <NewPeriodForm
+        projectId={project.id}
+        nextNumber={
+          periods.length > 0
+            ? Math.max(...periods.map((p) => p.periodNumber)) + 1
+            : 1
+        }
+      />
+      <NewApplicationForm
+        openPeriods={periods.filter((p) => p.status === 'open')}
+        appliedPeriodIds={applications.map((a) => a.billingPeriodId)}
+      />
       <p style={muted}>
         Retainage: {schedule ? `${schedule.retainagePercent}%` : 'no schedule'} ·{' '}
         {periods.length} period(s) · {applications.length} application(s)
@@ -340,6 +386,7 @@ export default async function AscendProjectDetailPage({ params }: PageProps) {
                 <th style={{ ...th, textAlign: 'right' }}>Retainage</th>
                 <th style={{ ...th, textAlign: 'right' }}>Stored mat.</th>
                 <th style={{ ...th, textAlign: 'right' }}>Due</th>
+                <th style={th}>Action</th>
               </tr>
             </thead>
             <tbody>
@@ -365,6 +412,9 @@ export default async function AscendProjectDetailPage({ params }: PageProps) {
                   </td>
                   <td style={{ ...td, ...money }}>
                     {formatCents(a.currentDueCents)}
+                  </td>
+                  <td style={td}>
+                    <ApplicationActions application={a} />
                   </td>
                 </tr>
               ))}

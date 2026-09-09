@@ -4,6 +4,9 @@ import { getFieldPrincipal, withFieldContext } from '@/lib/field-api-auth';
 import { isDatabaseConfigured } from '@/lib/db';
 import { formatCents } from '@/lib/tenant';
 import { listModernizationProjects } from '@/lib/ascend/modernization-projects';
+import { listBuildings } from '@/lib/ascend/buildings';
+import { listCustomers } from '@/lib/customers';
+import { NewProjectForm } from '../_forms/site';
 import {
   A,
   card,
@@ -43,8 +46,13 @@ export default async function AscendProjectsPage() {
     );
   }
 
-  const projects = await withFieldContext(principal, async () =>
-    listModernizationProjects({ limit: 100 }),
+  const { projects, customers, buildings } = await withFieldContext(
+    principal,
+    async () => ({
+      projects: await listModernizationProjects({ limit: 100 }),
+      customers: await listCustomers(''),
+      buildings: await listBuildings({ limit: 100 }),
+    }),
   );
 
   return (
@@ -54,6 +62,8 @@ export default async function AscendProjectsPage() {
         One project spans one or more elevator units, tracked through work
         packages, costs, progress, and billing.
       </p>
+
+      <NewProjectForm customers={customers} buildings={buildings} />
 
       {projects.length === 0 ? (
         <p style={muted}>No projects yet.</p>
