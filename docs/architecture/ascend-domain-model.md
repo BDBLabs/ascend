@@ -233,7 +233,24 @@ to `contractor_app`, indexes leading with `organization_id`.
 - Deferred as instructed: estimate↔project linkage (bids link out
   to Field estimates), write actions, Phase 8 brand cleanup.
 
-## 13. Phase 1 scope guardrails
+## 13. Phase 8 — brand/domain cleanup (no migration, committed)
+
+- Single `ASCEND_MODE=1` flag (J-Box deployments unset): staff
+  workspace brands as Ascend (`lib/brand.ts`, unit tested) across the
+  Field login, shell metadata, access panels, and subscription banner.
+- Obsolete surfaces retired on Ascend deployments with 404 at the
+  proxy: `/jbox/*` (old dashboard) and `/dispatch/*` (trade portal).
+  Tenant storefronts return before the retire branch; `/field`,
+  `/platform` fallback, APIs, and customer estimate links keep
+  serving on both deployments.
+- Obsolete electrical assumption removed: default job title is now
+  `Service job` (was `Electrical service`).
+- Deliberately deferred: `@contractor-platform/*` npm package renames
+  (user-invisible, shared with jbox-product, high churn), the
+  `*.usejbox.com` domain cutover (DNS + Clerk + tenant hostnames),
+  trade-specific sketch symbol catalog, and `/platform` marketing copy.
+
+## 14. Phase 1 scope guardrails
 
 - Additive migration only. No edits to `001`–`023`, no J-Box UI/route
   changes, no global renames.

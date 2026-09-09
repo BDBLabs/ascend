@@ -35,7 +35,7 @@ async function responsePayload(response: Response): Promise<ApiPayload> {
 }
 
 const initialJobInput = (title: string): JobInput => ({
-  title: title.trim() || 'Electrical service',
+  title: title.trim() || 'Service job',
   notes: '',
   customerStatedProblem: '',
   technicianDiagnosis: '',

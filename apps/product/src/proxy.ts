@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { isAscendMode, isRetiredAscendRoute } from '@/lib/brand';
 import { classifyHost } from '@/lib/host';
 
 const isDevelopment = process.env.NODE_ENV === 'development';
@@ -55,6 +56,19 @@ export function proxy(request: NextRequest) {
 
   if (classifyHost(request.headers.get('host')) === 'tenant') {
     return next();
+  }
+
+  // Phase 8 retirements: on Ascend deployments the obsolete J-Box
+  // dashboard and trade-dispatch portal answer 404. Tenant storefronts
+  // return above and are unaffected; J-Box deployments leave
+  // ASCEND_MODE unset and keep serving them.
+  if (
+    isAscendMode() &&
+    isRetiredAscendRoute(request.nextUrl.pathname)
+  ) {
+    const response = new NextResponse('Not found', { status: 404 });
+    response.headers.set('Content-Security-Policy', buildCsp(nonce));
+    return response;
   }
 
   // Ascend prototype: the deployment root is the Field login. Tenant

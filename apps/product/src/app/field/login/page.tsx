@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { brandFieldEyebrow, brandTagline } from '@/lib/brand';
 import { LoginForm } from '../login-form';
 import styles from '../field.module.css';
 
@@ -17,9 +18,9 @@ export default async function FieldLoginPage() {
   return (
     <main className={styles.accessPage}>
       <section className={styles.accessPanel}>
-        <p className={styles.eyebrow}>J-Box Field</p>
+        <p className={styles.eyebrow}>{brandFieldEyebrow()}</p>
         <h1>Sign in</h1>
-        <p>Staff workspace for trade contractors.</p>
+        <p>{brandTagline()}</p>
         <LoginForm />
         <p className={styles.accessMuted}>
           <Link href="/">Return to the platform</Link>

@@ -28,7 +28,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 /**
- * Bid pipeline. Estimates are J-Box's bidding instrument; the
+ * Bid pipeline. Estimates are the bidding instrument; the
  * estimate↔project linkage lands in a later phase, so each bid links
  * out to its Field estimate for now.
  */

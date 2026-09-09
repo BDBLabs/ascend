@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { brandFieldEyebrow, brandName } from '@/lib/brand';
 import { getFieldPrincipal } from '@/lib/field-api-auth';
 import { isFieldAuthConfigured } from '@/lib/identity-environment';
 import { ROLE_LABELS } from '@/lib/identity';
@@ -9,11 +10,14 @@ import styles from './field.module.css';
 
 export const dynamic = 'force-dynamic';
 
-export const metadata: Metadata = {
-  title: 'J-Box Field',
-  description: 'Staff workspace for trade contractors. A J-Box product.',
-  robots: { index: false, follow: false },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const name = brandName();
+  return {
+    title: `${name} Field`,
+    description: `Staff workspace. A ${name} product.`,
+    robots: { index: false, follow: false },
+  };
+}
 
 /**
  * Field shell. Runs on the platform host (field.usejbox.com): tenant-free by
@@ -58,7 +62,7 @@ export default async function FieldLayout({ children }: Readonly<{ children: Rea
       return (
         <main className={styles.accessPage}>
           <section className={styles.accessPanel}>
-            <p className={styles.eyebrow}>J-Box Field</p>
+            <p className={styles.eyebrow}>{brandFieldEyebrow()}</p>
             <h1>Sign in to the workspace.</h1>
             <p>
               The Field workspace resolves an authenticated staff member and
@@ -72,9 +76,9 @@ export default async function FieldLayout({ children }: Readonly<{ children: Rea
 
     return (
       <main className={styles.accessPage}>
-        <section className={styles.accessPanel}>
-          <p className={styles.eyebrow}>J-Box Field</p>
-          <h1>Staff access is not configured.</h1>
+          <section className={styles.accessPanel}>
+            <p className={styles.eyebrow}>{brandFieldEyebrow()}</p>
+            <h1>Staff access is not configured.</h1>
           <p>
             The Field workspace resolves an authenticated staff member and their
             active organization. No identity provider is configured for this
@@ -109,7 +113,7 @@ export default async function FieldLayout({ children }: Readonly<{ children: Rea
           padding: '10px 24px', textAlign: 'center', fontSize: '0.88rem',
         }}>
           <strong>Subscription {subscriptionStatus}.</strong>{' '}
-          To keep using J-Box Field, please{' '}
+          To keep using {brandFieldEyebrow()}, please{' '}
           <a href="/api/platform/billing/portal-redirect" style={{ color: '#713f12', fontWeight: 700 }}>
             update your billing
           </a>.
@@ -118,7 +122,7 @@ export default async function FieldLayout({ children }: Readonly<{ children: Rea
       <header className={styles.header}>
         <div className={styles.headerInner}>
           <MobileMenuButton />
-          <Link className={styles.brand} href="/field">J-Box Field</Link>
+          <Link className={styles.brand} href="/field">{brandFieldEyebrow()}</Link>
           <nav className={styles.nav} aria-label="Field workspace">
             <Link className={styles.navLink} href="/field">Shop Control</Link>
             <Link className={styles.navLink} href="/field/customers">Client Index</Link>
