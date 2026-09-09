@@ -189,7 +189,32 @@ to `contractor_app`, indexes leading with `organization_id`.
   project↔CO association in Phase 6) and billed-to-date wiring
   (Phase 6 progress billing).
 
-## 11. Phase 1 scope guardrails
+## 11. Phase 6 — progress billing (migration `028`, committed)
+
+- `billing_schedules`: one row per project (upsert), retainage percent.
+- `billing_periods`: numbered periods with dates; closed on invoicing.
+- `progress_applications`: frozen per-period snapshot (contract,
+  earned, previously billed, retainage %, retainage ¢, stored
+  materials, amount due) with draft → submitted → approved → invoiced
+  workflow (rejected returns to submitted). Amount due may be negative
+  (credit balance is a fact). One application per period.
+- `progress_application_events`: append-only audit trail. Only drafts
+  may be voided (single atomic statement); submitted history is final.
+- Snapshot math: earned from the live progress read model, previously
+  billed from earlier approved/invoiced applications, retainage held
+  against earned (stored materials bill free of retainage) — all
+  integer half-up.
+- Invoice integration: approved applications link to their invoice
+  (`invoice_id`, existence-checked); `buildApplicationInvoiceLines`
+  itemizes earned/previously-billed/retainage/stored so the invoice
+  total agrees with the snapshot by construction. The invoice engine
+  itself is untouched — it consumes, never computes.
+- Deferred as instructed: project↔change-order association feeding
+  approved CO value into contract value, and creating invoices
+  directly from applications (needs estimate-decoupled invoice
+  creation).
+
+## 12. Phase 1 scope guardrails
 
 - Additive migration only. No edits to `001`–`023`, no J-Box UI/route
   changes, no global renames.

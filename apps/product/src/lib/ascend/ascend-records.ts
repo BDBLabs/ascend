@@ -6,6 +6,7 @@ import type { ElevatorType, ProjectStatus } from './ascend-contract';
 import type { WorkPackageStatus } from './work-package-contract';
 import type { CostCategory, CostKind } from './project-cost-contract';
 import type { PartStatus } from './project-part-contract';
+import type { ApplicationStatus } from './billing-contract';
 
 type Row = Record<string, unknown>;
 
@@ -313,6 +314,92 @@ export function mapProjectPart(r: Row): ProjectPartRecord {
     supplier: (r.supplier as string) ?? '',
     sourceRef: (r.source_ref as string) ?? '',
     neededDate: toIsoDate(r.needed_date),
+    notes: (r.notes as string) ?? '',
+    createdAt: timestampToken(r, 'created_at'),
+    updatedAt: timestampToken(r, 'updated_at'),
+  };
+}
+
+export type BillingScheduleRecord = {
+  id: string;
+  projectId: string;
+  retainagePercent: number;
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export function mapBillingSchedule(r: Row): BillingScheduleRecord {
+  return {
+    id: r.id as string,
+    projectId: r.project_id as string,
+    retainagePercent: Number(r.retainage_percent ?? 0),
+    notes: (r.notes as string) ?? '',
+    createdAt: timestampToken(r, 'created_at'),
+    updatedAt: timestampToken(r, 'updated_at'),
+  };
+}
+
+export type BillingPeriodRecord = {
+  id: string;
+  projectId: string;
+  periodNumber: number;
+  periodStart: string | null;
+  periodEnd: string | null;
+  status: 'open' | 'closed';
+  createdAt: string;
+  updatedAt: string;
+};
+
+export function mapBillingPeriod(r: Row): BillingPeriodRecord {
+  return {
+    id: r.id as string,
+    projectId: r.project_id as string,
+    periodNumber: Number(r.period_number ?? 0),
+    periodStart: toIsoDate(r.period_start),
+    periodEnd: toIsoDate(r.period_end),
+    status: r.status as 'open' | 'closed',
+    createdAt: timestampToken(r, 'created_at'),
+    updatedAt: timestampToken(r, 'updated_at'),
+  };
+}
+
+export type ProgressApplicationRecord = {
+  id: string;
+  billingPeriodId: string;
+  periodNumber: number;
+  projectId: string;
+  projectDisplayId: string;
+  invoiceId: string | null;
+  status: ApplicationStatus;
+  contractValueCents: number;
+  earnedValueCents: number;
+  previouslyBilledCents: number;
+  retainagePercent: number;
+  retainageCents: number;
+  storedMaterialsCents: number;
+  currentDueCents: number;
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export function mapProgressApplication(r: Row): ProgressApplicationRecord {
+  return {
+    id: r.id as string,
+    billingPeriodId: r.billing_period_id as string,
+    periodNumber: Number(r.period_number ?? 0),
+    projectId: r.project_id as string,
+    projectDisplayId: (r.project_display_id as string) ?? '',
+    invoiceId: (r.invoice_id as string | null) ?? null,
+    status: r.status as ApplicationStatus,
+    contractValueCents: Number(r.contract_value_cents ?? 0),
+    earnedValueCents: Number(r.earned_value_cents ?? 0),
+    previouslyBilledCents: Number(r.previously_billed_cents ?? 0),
+    retainagePercent: Number(r.retainage_percent ?? 0),
+    retainageCents: Number(r.retainage_cents ?? 0),
+    storedMaterialsCents: Number(r.stored_materials_cents ?? 0),
+    currentDueCents: Number(r.current_due_cents ?? 0),
     notes: (r.notes as string) ?? '',
     createdAt: timestampToken(r, 'created_at'),
     updatedAt: timestampToken(r, 'updated_at'),
