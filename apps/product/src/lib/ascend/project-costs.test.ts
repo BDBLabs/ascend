@@ -250,3 +250,50 @@ describe('getProjectBilledCents', () => {
     expect(params).toEqual([UUID]);
   });
 });
+
+describe('updateCostEntry', () => {
+  beforeEach(() => {
+    queryMock.mockReset();
+  });
+
+  it('revises planning figures and returns the entry', async () => {
+    const { updateCostEntry } = await import('./project-costs');
+    const base = {
+      project_id: UUID,
+      elevator_unit_id: null,
+      work_package_id: null,
+      cost_category: 'material',
+      amount_cents: 100,
+      labor_hours_hundredths: null,
+      labor_rate_cents_per_hour: null,
+      cost_date: '2026-10-05',
+      source_type: '',
+      source_ref: '',
+      description: '',
+    };
+    queryMock
+      .mockResolvedValueOnce([{ ...base, cost_kind: 'forecast' }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([entryRow({ cost_kind: 'forecast', amount_cents: 200 })]);
+
+    const result = await updateCostEntry('entry-1', { amountCents: 200 });
+    expect(result.ok).toBe(true);
+  });
+
+  it('refuses posted actuals and missing rows', async () => {
+    const { updateCostEntry } = await import('./project-costs');
+    queryMock.mockResolvedValueOnce([{ cost_kind: 'actual' }]);
+    await expect(updateCostEntry('entry-1', { amountCents: 1 })).resolves.toEqual({
+      ok: false,
+      error: 'immutable',
+    });
+    expect(queryMock).toHaveBeenCalledTimes(1);
+
+    queryMock.mockReset();
+    queryMock.mockResolvedValueOnce([]);
+    await expect(updateCostEntry('missing', {})).resolves.toEqual({
+      ok: false,
+      error: 'entry-not-found',
+    });
+  });
+});

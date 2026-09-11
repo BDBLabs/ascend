@@ -189,3 +189,86 @@ export async function unlinkElevatorFromProject(
   )) as Array<Record<string, unknown>>;
   return rows.length > 0;
 }
+
+export type UpdateProjectInput = {
+  status?: ProjectStatus;
+  contractValueCents?: number;
+  projectManager?: string;
+  startDate?: string | null;
+  targetCompletionDate?: string | null;
+  actualCompletionDate?: string | null;
+  notes?: string;
+};
+
+/**
+ * Updates mutable project fields. Reads the row, merges, and validates
+ * the whole record so partial updates cannot violate record invariants.
+ * The estimate link and customer/building associations change only
+ * through their dedicated link endpoints.
+ */
+export async function updateModernizationProject(
+  id: string,
+  patch: UpdateProjectInput,
+): Promise<ModernizationProjectRecord | null> {
+  const sql = db();
+  const current = (await sql.query(
+    `SELECT display_id, customer_id, building_id, status, contract_value_cents,
+            project_manager, start_date, target_completion_date,
+            actual_completion_date, notes
+     FROM modernization_projects WHERE id = $1::uuid LIMIT 1`,
+    [id],
+  )) as Array<{
+    display_id: string;
+    customer_id: string;
+    building_id: string | null;
+    status: string;
+    contract_value_cents: string | number;
+    project_manager: string;
+    start_date: string;
+    target_completion_date: string | null;
+    actual_completion_date: string | null;
+    notes: string;
+  }>;
+  const row = current[0];
+  if (!row) return null;
+
+  // node-pg returns DATE columns as Date objects; normalize for validation.
+  const isoDate = (v: unknown): string | null =>
+    v instanceof Date ? v.toISOString().slice(0, 10) : (v as string | null);
+  const merged = {
+    displayId: row.display_id,
+    customerId: row.customer_id,
+    buildingId: row.building_id,
+    status: (patch.status ?? row.status) as ProjectStatus,
+    contractValueCents:
+      patch.contractValueCents ?? Number(row.contract_value_cents),
+    projectManager: patch.projectManager ?? row.project_manager,
+    startDate: patch.startDate ?? isoDate(row.start_date),
+    targetCompletionDate:
+      patch.targetCompletionDate ?? isoDate(row.target_completion_date),
+    actualCompletionDate:
+      patch.actualCompletionDate ?? isoDate(row.actual_completion_date),
+    notes: patch.notes ?? row.notes,
+  };
+  const errors = validateProjectInput(merged);
+  if (errors.length) throw new Error(`Invalid project: ${errors.join(' ')}`);
+
+  await sql.query(
+    `UPDATE modernization_projects
+     SET status = $2, contract_value_cents = $3, project_manager = $4,
+         start_date = $5::date, target_completion_date = $6::date,
+         actual_completion_date = $7::date, notes = $8, updated_at = now()
+     WHERE id = $1::uuid`,
+    [
+      id,
+      merged.status,
+      merged.contractValueCents,
+      merged.projectManager,
+      merged.startDate,
+      merged.targetCompletionDate,
+      merged.actualCompletionDate,
+      merged.notes,
+    ],
+  );
+  return getModernizationProject(id);
+}

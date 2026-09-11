@@ -17,4 +17,4 @@
  * the expected schema version without keeping two hand-rolled strings in sync.
  * Update it whenever a new migration file is added to migrations/.
  */
-export const LATEST_MIGRATION = '030_ascend_change_order_links.sql';
+export const LATEST_MIGRATION = '031_ascend_contract_obligations.sql';

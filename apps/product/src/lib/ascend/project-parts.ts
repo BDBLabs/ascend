@@ -326,3 +326,76 @@ export async function recordPartQuantity(
   if (!row) return { ok: false, error: 'part-not-found' };
   return { ok: true, part: mapProjectPart(row) };
 }
+
+export type UpdateProjectPartInput = {
+  description?: string;
+  supplier?: string;
+  sourceRef?: string;
+  neededDate?: string | null;
+  notes?: string;
+  plannedCostCents?: number;
+};
+
+/**
+ * Updates descriptive part fields. Status travels through
+ * updatePartStatus and quantities through recordPartQuantity; this
+ * path refuses all three.
+ */
+export async function updateProjectPart(
+  id: string,
+  patch: UpdateProjectPartInput,
+): Promise<ProjectPartRecord | null> {
+  const sql = db();
+  const current = (await sql.query(
+    `SELECT project_id, building_id, elevator_unit_id, work_package_id,
+            inventory_item_id, description, quantity_required_hundredths,
+            planned_cost_cents, actual_cost_cents, supplier, source_ref,
+            needed_date, notes
+     FROM project_parts WHERE id = $1::uuid LIMIT 1`,
+    [id],
+  )) as Array<Record<string, unknown>>;
+  const row = current[0];
+  if (!row) return null;
+
+  const merged = {
+    projectId: row.project_id as string,
+    buildingId: row.building_id as string | null,
+    elevatorUnitId: row.elevator_unit_id as string | null,
+    workPackageId: row.work_package_id as string | null,
+    inventoryItemId: row.inventory_item_id as string | null,
+    description: patch.description ?? (row.description as string),
+    quantityRequiredHundredths: Number(row.quantity_required_hundredths),
+    plannedCostCents: patch.plannedCostCents ?? Number(row.planned_cost_cents),
+    actualCostCents: Number(row.actual_cost_cents),
+    supplier: patch.supplier ?? (row.supplier as string),
+    sourceRef: patch.sourceRef ?? (row.source_ref as string),
+    neededDate:
+      patch.neededDate ??
+      (row.needed_date instanceof Date
+        ? (row.needed_date as Date).toISOString().slice(0, 10)
+        : (row.needed_date as string | null)),
+    notes: patch.notes ?? (row.notes as string),
+  };
+  const errors = validatePartInput(merged);
+  if (errors.length) {
+    throw new Error(`Invalid project part: ${errors.join(' ')}`);
+  }
+
+  await sql.query(
+    `UPDATE project_parts
+     SET description = $2, supplier = $3, source_ref = $4,
+         needed_date = $5::date, notes = $6, planned_cost_cents = $7,
+         updated_at = now()
+     WHERE id = $1::uuid`,
+    [
+      id,
+      merged.description,
+      merged.supplier,
+      merged.sourceRef,
+      merged.neededDate,
+      merged.notes,
+      merged.plannedCostCents,
+    ],
+  );
+  return getProjectPart(id);
+}

@@ -254,3 +254,44 @@ describe('recordWorkPackageProgress terminal guard', () => {
     expect(queryMock).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('updateWorkPackage', () => {
+  beforeEach(() => {
+    queryMock.mockReset();
+  });
+
+  it('updates descriptive fields and returns the record', async () => {
+    const { updateWorkPackage } = await import('./work-packages');
+    queryMock
+      .mockResolvedValueOnce([
+        {
+          project_id: UUID,
+          name: 'Controller',
+          category: 'Controller',
+          description: '',
+          budget_cost_cents: 100,
+          contract_value_cents: 200,
+          planned_start: null,
+          planned_finish: null,
+          actual_start: null,
+          actual_finish: null,
+          responsible_person: '',
+          notes: '',
+        },
+      ])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([packageRow({ name: 'Controller Rev 2' })]);
+
+    const result = await updateWorkPackage('package-1', {
+      name: 'Controller Rev 2',
+      budgetCostCents: 150,
+    });
+    expect(result?.name).toBe('Controller Rev 2');
+  });
+
+  it('returns null when missing', async () => {
+    const { updateWorkPackage } = await import('./work-packages');
+    queryMock.mockResolvedValueOnce([]);
+    await expect(updateWorkPackage('missing', {})).resolves.toBeNull();
+  });
+});

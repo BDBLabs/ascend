@@ -191,3 +191,72 @@ describe('unlinkElevatorFromProject', () => {
     ).resolves.toBe(false);
   });
 });
+
+describe('updateModernizationProject', () => {
+  beforeEach(() => {
+    queryMock.mockReset();
+  });
+
+  it('merges, validates, and returns the refreshed record', async () => {
+    const { updateModernizationProject } = await import(
+      './modernization-projects'
+    );
+    queryMock
+      .mockResolvedValueOnce([
+        {
+          display_id: 'ASC-0001',
+          customer_id: UUID,
+          building_id: UUID,
+          status: 'awarded',
+          contract_value_cents: 10000000,
+          project_manager: '',
+          start_date: '2026-10-01',
+          target_completion_date: null,
+          actual_completion_date: null,
+          notes: '',
+        },
+      ])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        { ...projectRow(), status: 'in_progress' },
+      ]);
+
+    const result = await updateModernizationProject(UUID, {
+      status: 'in_progress',
+      projectManager: 'Bill Parris',
+    });
+    expect(result?.status).toBe('in_progress');
+    const update = queryMock.mock.calls[1] as [string, unknown[]];
+    expect(update[0]).toContain('UPDATE modernization_projects');
+  });
+
+  it('returns null for missing projects and throws on invalid merges', async () => {
+    const { updateModernizationProject } = await import(
+      './modernization-projects'
+    );
+    queryMock.mockResolvedValueOnce([]);
+    await expect(updateModernizationProject(UUID, {})).resolves.toBeNull();
+
+    queryMock.mockReset();
+    queryMock.mockResolvedValueOnce([
+      {
+        display_id: 'ASC-0001',
+        customer_id: UUID,
+        building_id: UUID,
+        status: 'awarded',
+        contract_value_cents: 10000000,
+        project_manager: '',
+        start_date: '2026-10-01',
+        target_completion_date: null,
+        actual_completion_date: null,
+        notes: '',
+      },
+    ]);
+    await expect(
+      updateModernizationProject(UUID, {
+        startDate: '2026-12-01',
+        targetCompletionDate: '2026-01-01',
+      }),
+    ).rejects.toThrow('Invalid project');
+  });
+});

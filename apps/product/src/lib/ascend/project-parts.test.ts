@@ -219,3 +219,42 @@ describe('recordPartQuantity', () => {
     expect(queryMock).not.toHaveBeenCalled();
   });
 });
+
+describe('updateProjectPart', () => {
+  beforeEach(() => {
+    queryMock.mockReset();
+  });
+
+  it('updates descriptive fields and returns the part', async () => {
+    const { updateProjectPart } = await import('./project-parts');
+    queryMock
+      .mockResolvedValueOnce([
+        {
+          project_id: UUID,
+          building_id: null,
+          elevator_unit_id: null,
+          work_package_id: null,
+          inventory_item_id: null,
+          description: 'Old',
+          quantity_required_hundredths: 100,
+          planned_cost_cents: 0,
+          actual_cost_cents: 0,
+          supplier: '',
+          source_ref: '',
+          needed_date: null,
+          notes: '',
+        },
+      ])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([partRow({ description: 'New' })]);
+
+    const result = await updateProjectPart('part-1', { description: 'New' });
+    expect(result?.description).toBe('New');
+  });
+
+  it('returns null when missing', async () => {
+    const { updateProjectPart } = await import('./project-parts');
+    queryMock.mockResolvedValueOnce([]);
+    await expect(updateProjectPart('missing', {})).resolves.toBeNull();
+  });
+});

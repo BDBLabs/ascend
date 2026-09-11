@@ -284,3 +284,84 @@ export async function getProjectBilledCents(projectId: string): Promise<number> 
   )) as Array<{ total: string | number }>;
   return Number(rows[0]?.total ?? 0);
 }
+
+export type UpdateCostEntryInput = {
+  amountCents?: number;
+  costDate?: string;
+  description?: string;
+  sourceType?: string;
+  sourceRef?: string;
+  workPackageId?: string | null;
+  elevatorUnitId?: string | null;
+};
+
+export type UpdateCostEntryResult =
+  | { ok: true; entry: ProjectCostEntryRecord }
+  | { ok: false; error: 'entry-not-found' | 'immutable' | 'invalid' };
+
+/**
+ * Revises a planning-figure entry (budget, committed, forecast).
+ * Posted actuals are immutable by database trigger and refused here
+ * before touching the row: correct actuals with a new entry.
+ */
+export async function updateCostEntry(
+  id: string,
+  patch: UpdateCostEntryInput,
+): Promise<UpdateCostEntryResult> {
+  const sql = db();
+  const current = (await sql.query(
+    `SELECT project_id, elevator_unit_id, work_package_id, cost_kind,
+            cost_category, amount_cents, labor_hours_hundredths,
+            labor_rate_cents_per_hour, cost_date, source_type, source_ref,
+            description
+     FROM project_cost_entries WHERE id = $1::uuid LIMIT 1`,
+    [id],
+  )) as Array<Record<string, unknown>>;
+  const row = current[0];
+  if (!row) return { ok: false, error: 'entry-not-found' };
+  if (row.cost_kind === 'actual') return { ok: false, error: 'immutable' };
+
+  const merged = {
+    projectId: row.project_id as string,
+    elevatorUnitId:
+      patch.elevatorUnitId ?? (row.elevator_unit_id as string | null),
+    workPackageId:
+      patch.workPackageId ?? (row.work_package_id as string | null),
+    costKind: row.cost_kind as CostKind,
+    costCategory: row.cost_category as CostCategory,
+    amountCents: patch.amountCents ?? Number(row.amount_cents),
+    laborHoursHundredths: row.labor_hours_hundredths as number | null,
+    laborRateCentsPerHour: row.labor_rate_cents_per_hour as number | null,
+    costDate:
+      patch.costDate ??
+      (row.cost_date instanceof Date
+        ? (row.cost_date as Date).toISOString().slice(0, 10)
+        : (row.cost_date as string)),
+    sourceType: patch.sourceType ?? (row.source_type as string),
+    sourceRef: patch.sourceRef ?? (row.source_ref as string),
+    description: patch.description ?? (row.description as string),
+  };
+  const errors = validateCostEntryInput(merged);
+  if (errors.length) return { ok: false, error: 'invalid' };
+
+  await sql.query(
+    `UPDATE project_cost_entries
+     SET amount_cents = $2, cost_date = $3::date, description = $4,
+         source_type = $5, source_ref = $6, work_package_id = $7::uuid,
+         elevator_unit_id = $8::uuid, updated_at = now()
+     WHERE id = $1::uuid`,
+    [
+      id,
+      merged.amountCents,
+      merged.costDate,
+      merged.description,
+      merged.sourceType,
+      merged.sourceRef,
+      merged.workPackageId,
+      merged.elevatorUnitId,
+    ],
+  );
+  const entry = await getCostEntry(id);
+  if (!entry) return { ok: false, error: 'entry-not-found' };
+  return { ok: true, entry };
+}

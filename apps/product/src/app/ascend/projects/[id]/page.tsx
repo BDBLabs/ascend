@@ -29,6 +29,18 @@ import {
   listRecentChangeOrders,
 } from '@/lib/ascend/change-order-links';
 import {
+  getObligationDetail,
+  listObligations,
+} from '@/lib/ascend/obligations';
+import { NewObligationForm, ObligationTree } from '../../_forms/obligations';
+import {
+  EditCostForm,
+  EditPackageForm,
+  EditPartForm,
+  EditProjectForm,
+} from '../../_forms/edits';
+import { listCostEntries } from '@/lib/ascend/project-costs';
+import {
   getBillingSchedule,
   listApplications,
   listBillingPeriods,
@@ -97,6 +109,7 @@ export default async function AscendProjectDetailPage({ params }: PageProps) {
       progress,
       packages,
       costs,
+      entries,
       parts,
       schedule,
       periods,
@@ -105,10 +118,12 @@ export default async function AscendProjectDetailPage({ params }: PageProps) {
       allUnits,
       changeOrders,
       recentOrders,
+      obligations,
     ] = await Promise.all([
       getProjectProgress(id),
       listWorkPackages({ projectId: id, limit: 100 }),
       summarizeProjectCosts(id),
+      listCostEntries({ projectId: id, limit: 20 }),
       listProjectParts({ projectId: id, limit: 100 }),
       getBillingSchedule(id),
       listBillingPeriods(id),
@@ -117,12 +132,16 @@ export default async function AscendProjectDetailPage({ params }: PageProps) {
       listElevatorUnits({ limit: 100 }),
       listProjectChangeOrders(id),
       listRecentChangeOrders(100),
+      listObligations(id),
     ]);
-    return { project, progress, packages, costs, parts, schedule, periods, applications, units, allUnits, changeOrders, recentOrders };
+    const obligationDetails = (
+      await Promise.all(obligations.map((o) => getObligationDetail(o.id)))
+    ).filter((d) => d !== null);
+    return { project, progress, packages, costs, entries, parts, schedule, periods, applications, units, allUnits, changeOrders, recentOrders, obligationDetails };
   });
 
   if (!data) notFound();
-  const { project, progress, packages, costs, parts, schedule, periods, applications, units, allUnits, changeOrders, recentOrders } = data;
+  const { project, progress, packages, costs, entries, parts, schedule, periods, applications, units, allUnits, changeOrders, recentOrders, obligationDetails } = data;
 
   return (
     <div style={page}>
@@ -220,6 +239,9 @@ export default async function AscendProjectDetailPage({ params }: PageProps) {
           Completed: {project.actualCompletionDate ?? '—'}
           {project.notes ? ` · ${project.notes}` : ''}
         </p>
+        <div style={{ marginTop: '8px' }}>
+          <EditProjectForm project={project} />
+        </div>
       </div>
 
       <h2 style={sectionTitle}>Elevator units ({units.length})</h2>
@@ -285,6 +307,7 @@ export default async function AscendProjectDetailPage({ params }: PageProps) {
                 <th style={{ ...th, textAlign: 'right' }}>Sell</th>
                 <th style={th}>Responsible</th>
                 <th style={th}>Report</th>
+                <th style={th}>Edit</th>
               </tr>
             </thead>
             <tbody>
@@ -306,6 +329,9 @@ export default async function AscendProjectDetailPage({ params }: PageProps) {
                   <td style={td}>{w.responsiblePerson || '—'}</td>
                   <td style={td}>
                     <ProgressForm workPackage={w} />
+                  </td>
+                  <td style={td}>
+                    <EditPackageForm pkg={w} />
                   </td>
                 </tr>
               ))}
@@ -338,6 +364,42 @@ export default async function AscendProjectDetailPage({ params }: PageProps) {
                     {formatCents(b.totalCents)}
                   </td>
                   <td style={{ ...td, ...money }}>{b.entryCount}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <h2 style={sectionTitle}>Recent entries ({entries.length})</h2>
+      {entries.length === 0 ? (
+        <p style={muted}>No entries yet.</p>
+      ) : (
+        <div style={card}>
+          <table style={table}>
+            <thead>
+              <tr>
+                <th style={th}>Date</th>
+                <th style={th}>Lens</th>
+                <th style={th}>Category</th>
+                <th style={th}>Description</th>
+                <th style={{ ...th, textAlign: 'right' }}>Amount</th>
+                <th style={th}>Edit</th>
+              </tr>
+            </thead>
+            <tbody>
+              {entries.map((e) => (
+                <tr key={e.id}>
+                  <td style={td}>{e.costDate ?? '—'}</td>
+                  <td style={td}>{e.costKind}</td>
+                  <td style={td}>{e.costCategory}</td>
+                  <td style={td}>{e.description || e.sourceRef || '—'}</td>
+                  <td style={{ ...td, ...money }}>
+                    {formatCents(e.amountCents)}
+                  </td>
+                  <td style={td}>
+                    <EditCostForm entry={e} />
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -384,6 +446,9 @@ export default async function AscendProjectDetailPage({ params }: PageProps) {
                   <td style={td}>{p.supplier || '—'}</td>
                   <td style={td}>
                     <PartUpdateForm part={p} />
+                    <div style={{ marginTop: '6px' }}>
+                      <EditPartForm part={p} />
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -432,6 +497,21 @@ export default async function AscendProjectDetailPage({ params }: PageProps) {
             </tbody>
           </table>
         </div>
+      )}
+
+      <h2 style={sectionTitle}>
+        Contract obligations ({obligationDetails.length})
+      </h2>
+      <NewObligationForm projectId={project.id} />
+      {obligationDetails.length === 0 ? (
+        <p style={muted}>
+          No obligations traced yet. Break the contract into obligations,
+          milestones, and evidenced activities.
+        </p>
+      ) : (
+        obligationDetails.map((d) => (
+          <ObligationTree key={d.obligation.id} detail={d} packages={packages} />
+        ))
       )}
 
       <h2 style={sectionTitle}>Billing</h2>

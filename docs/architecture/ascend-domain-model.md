@@ -271,7 +271,27 @@ to `contractor_app`, indexes leading with `organization_id`.
   project detail shows estimate, change orders, and per-application
   invoice creation.
 
-## 15. Phase 1 scope guardrails
+## 15. Backlog: obligations, hardening, edits (migration `031`, committed)
+
+- `031`: obligation → milestone → activity → evidence with a
+  single append-only `obligation_events` log. Guarded transitions
+  (obligations/milestones/activities terminal except missed→met
+  recovery); activities pin to work packages; evidence-required
+  activities cannot complete empty-handed. Full tree served by
+  `getObligationDetail`; workspace UI on project detail with
+  create/transition/evidence forms; 7 write API routes.
+- Hardening: `CRON_SECRET` set (outbox drain operable; note Vercel
+  cron sends no auth header, so automatic draining needs an
+  external scheduler or future cron-auth work). Still operator-side:
+  separate Neon preview/development branches, branch protection
+  (paid plan), PITR/backups, and auth-secret rotation via
+  `*_PREVIOUS_KEYS_JSON`.
+- Edit paths: PATCH endpoints + inline forms for project, package
+  (never status/percent), planning-figure costs (actuals stay
+  immutable end to end), and part descriptive fields — all merged
+  against the live row and revalidated whole-record.
+
+## 16. Phase 1 scope guardrails
 
 - Additive migration only. No edits to `001`–`023`, no J-Box UI/route
   changes, no global renames.

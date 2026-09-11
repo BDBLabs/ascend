@@ -7,6 +7,12 @@ import type { WorkPackageStatus } from './work-package-contract';
 import type { CostCategory, CostKind } from './project-cost-contract';
 import type { PartStatus } from './project-part-contract';
 import type { ApplicationStatus } from './billing-contract';
+import type {
+  ActivityStatus,
+  EvidenceKind,
+  MilestoneStatus,
+  ObligationStatus,
+} from './obligation-contract';
 
 type Row = Record<string, unknown>;
 
@@ -407,5 +413,107 @@ export function mapProgressApplication(r: Row): ProgressApplicationRecord {
     notes: (r.notes as string) ?? '',
     createdAt: timestampToken(r, 'created_at'),
     updatedAt: timestampToken(r, 'updated_at'),
+  };
+}
+
+export type ObligationRecord = {
+  id: string;
+  projectId: string;
+  title: string;
+  description: string;
+  sourceRef: string;
+  dueDate: string | null;
+  status: ObligationStatus;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export function mapObligation(r: Row): ObligationRecord {
+  return {
+    id: r.id as string,
+    projectId: r.project_id as string,
+    title: r.title as string,
+    description: (r.description as string) ?? '',
+    sourceRef: (r.source_ref as string) ?? '',
+    dueDate: toIsoDate(r.due_date),
+    status: r.status as ObligationStatus,
+    createdAt: timestampToken(r, 'created_at'),
+    updatedAt: timestampToken(r, 'updated_at'),
+  };
+}
+
+export type MilestoneRecord = {
+  id: string;
+  obligationId: string;
+  title: string;
+  description: string;
+  dueDate: string | null;
+  status: MilestoneStatus;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export function mapMilestone(r: Row): MilestoneRecord {
+  return {
+    id: r.id as string,
+    obligationId: r.obligation_id as string,
+    title: r.title as string,
+    description: (r.description as string) ?? '',
+    dueDate: toIsoDate(r.due_date),
+    status: r.status as MilestoneStatus,
+    createdAt: timestampToken(r, 'created_at'),
+    updatedAt: timestampToken(r, 'updated_at'),
+  };
+}
+
+export type ActivityRecord = {
+  id: string;
+  milestoneId: string;
+  workPackageId: string | null;
+  workPackageName: string | null;
+  title: string;
+  description: string;
+  evidenceRequired: boolean;
+  evidenceCount: number;
+  status: ActivityStatus;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export function mapActivity(r: Row): ActivityRecord {
+  return {
+    id: r.id as string,
+    milestoneId: r.milestone_id as string,
+    workPackageId: (r.work_package_id as string | null) ?? null,
+    workPackageName: (r.work_package_name as string | null) ?? null,
+    title: r.title as string,
+    description: (r.description as string) ?? '',
+    evidenceRequired: Boolean(r.evidence_required),
+    evidenceCount: Number(r.evidence_count ?? 0),
+    status: r.status as ActivityStatus,
+    createdAt: timestampToken(r, 'created_at'),
+    updatedAt: timestampToken(r, 'updated_at'),
+  };
+}
+
+export type EvidenceRecord = {
+  id: string;
+  activityId: string;
+  kind: EvidenceKind;
+  ref: string;
+  note: string;
+  actorId: string | null;
+  createdAt: string;
+};
+
+export function mapEvidence(r: Row): EvidenceRecord {
+  return {
+    id: r.id as string,
+    activityId: r.activity_id as string,
+    kind: r.kind as EvidenceKind,
+    ref: (r.ref as string) ?? '',
+    note: (r.note as string) ?? '',
+    actorId: (r.actor_id as string | null) ?? null,
+    createdAt: timestampToken(r, 'created_at'),
   };
 }

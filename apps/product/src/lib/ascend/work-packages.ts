@@ -265,3 +265,86 @@ export async function recordWorkPackageProgress(
   if (!row) return { ok: false, error: 'package-not-found' };
   return { ok: true, package: mapWorkPackage(row) };
 }
+
+export type UpdateWorkPackageInput = {
+  name?: string;
+  category?: string;
+  description?: string;
+  budgetCostCents?: number;
+  contractValueCents?: number;
+  plannedStart?: string | null;
+  plannedFinish?: string | null;
+  actualStart?: string | null;
+  actualFinish?: string | null;
+  responsiblePerson?: string;
+  notes?: string;
+};
+
+/**
+ * Updates mutable package fields. Status and percent travel only
+ * through recordWorkPackageProgress (with its event); this path
+ * refuses them outright.
+ */
+export async function updateWorkPackage(
+  id: string,
+  patch: UpdateWorkPackageInput,
+): Promise<WorkPackageRecord | null> {
+  const sql = db();
+  const current = (await sql.query(
+    `SELECT project_id, name, category, description, budget_cost_cents,
+            contract_value_cents, planned_start, planned_finish,
+            actual_start, actual_finish, responsible_person, notes
+     FROM work_packages WHERE id = $1::uuid LIMIT 1`,
+    [id],
+  )) as Array<Record<string, unknown>>;
+  const row = current[0];
+  if (!row) return null;
+
+  const isoDate = (v: unknown): string | null =>
+    v instanceof Date ? v.toISOString().slice(0, 10) : (v as string | null);
+  const merged = {
+    projectId: row.project_id as string,
+    name: patch.name ?? (row.name as string),
+    category: patch.category ?? (row.category as string),
+    description: patch.description ?? (row.description as string),
+    budgetCostCents: patch.budgetCostCents ?? Number(row.budget_cost_cents),
+    contractValueCents:
+      patch.contractValueCents ?? Number(row.contract_value_cents),
+    plannedStart: patch.plannedStart ?? isoDate(row.planned_start),
+    plannedFinish: patch.plannedFinish ?? isoDate(row.planned_finish),
+    actualStart: patch.actualStart ?? isoDate(row.actual_start),
+    actualFinish: patch.actualFinish ?? isoDate(row.actual_finish),
+    responsiblePerson:
+      patch.responsiblePerson ?? (row.responsible_person as string),
+    notes: patch.notes ?? (row.notes as string),
+  };
+  const errors = validateWorkPackageInput(merged);
+  if (errors.length) {
+    throw new Error(`Invalid work package: ${errors.join(' ')}`);
+  }
+
+  await sql.query(
+    `UPDATE work_packages
+     SET name = $2, category = $3, description = $4,
+         budget_cost_cents = $5, contract_value_cents = $6,
+         planned_start = $7::date, planned_finish = $8::date,
+         actual_start = $9::date, actual_finish = $10::date,
+         responsible_person = $11, notes = $12, updated_at = now()
+     WHERE id = $1::uuid`,
+    [
+      id,
+      merged.name,
+      merged.category,
+      merged.description,
+      merged.budgetCostCents,
+      merged.contractValueCents,
+      merged.plannedStart,
+      merged.plannedFinish,
+      merged.actualStart,
+      merged.actualFinish,
+      merged.responsiblePerson,
+      merged.notes,
+    ],
+  );
+  return getWorkPackage(id);
+}
