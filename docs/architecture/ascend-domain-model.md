@@ -250,7 +250,28 @@ to `contractor_app`, indexes leading with `organization_id`.
   `*.usejbox.com` domain cutover (DNS + Clerk + tenant hostnames),
   trade-specific sketch symbol catalog, and `/platform` marketing copy.
 
-## 14. Phase 1 scope guardrails
+## 14. Commercial loop (migrations `029`–`030`, committed)
+
+- `029`: `modernization_projects.estimate_id` — one project per
+  signed bid (partial unique index, mirroring 011), SET NULL-safe.
+  Only signed, same-customer estimates link.
+- `030`: `project_change_orders` — J-Box change orders attach to
+  projects without touching the engine; one CO per project max.
+  Approved CO value (`change_amount_cents`) flows into current
+  contract, margin, and billing snapshots live.
+- Invoices from applications: estimate-decoupled creation reusing
+  the engine (allocation, prefix, money-package totals, single
+  non-taxable line, `created` event), then the standard
+  mark-invoiced path. Zero/credit applications refuse with
+  `nothing-due` (engine lines cannot post credits).
+- Billed to date is now real: issued-and-beyond invoice totals on
+  invoiced applications. Progress reports carry base, approved
+  changes, current contract, billed, and remaining.
+- 15 write API routes + workspace forms; bids link to projects;
+  project detail shows estimate, change orders, and per-application
+  invoice creation.
+
+## 15. Phase 1 scope guardrails
 
 - Additive migration only. No edits to `001`–`023`, no J-Box UI/route
   changes, no global renames.

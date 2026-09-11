@@ -21,6 +21,14 @@ import {
   ScheduleForm,
 } from '../../_forms/billing';
 import {
+  CreateInvoiceButton,
+  LinkChangeOrderForm,
+} from '../../_forms/links';
+import {
+  listProjectChangeOrders,
+  listRecentChangeOrders,
+} from '@/lib/ascend/change-order-links';
+import {
   getBillingSchedule,
   listApplications,
   listBillingPeriods,
@@ -95,6 +103,8 @@ export default async function AscendProjectDetailPage({ params }: PageProps) {
       applications,
       units,
       allUnits,
+      changeOrders,
+      recentOrders,
     ] = await Promise.all([
       getProjectProgress(id),
       listWorkPackages({ projectId: id, limit: 100 }),
@@ -105,12 +115,14 @@ export default async function AscendProjectDetailPage({ params }: PageProps) {
       listApplications(id),
       Promise.all(project.elevatorUnitIds.map((u) => getElevatorUnit(u))),
       listElevatorUnits({ limit: 100 }),
+      listProjectChangeOrders(id),
+      listRecentChangeOrders(100),
     ]);
-    return { project, progress, packages, costs, parts, schedule, periods, applications, units, allUnits };
+    return { project, progress, packages, costs, parts, schedule, periods, applications, units, allUnits, changeOrders, recentOrders };
   });
 
   if (!data) notFound();
-  const { project, progress, packages, costs, parts, schedule, periods, applications, units, allUnits } = data;
+  const { project, progress, packages, costs, parts, schedule, periods, applications, units, allUnits, changeOrders, recentOrders } = data;
 
   return (
     <div style={page}>
@@ -126,12 +138,41 @@ export default async function AscendProjectDetailPage({ params }: PageProps) {
         <span style={pill(STATUS_COLORS[project.status] ?? A.textDim)}>
           {project.status.replaceAll('_', ' ')}
         </span>
+        {project.estimateDisplayId ? (
+          <>
+            {' '}· Bid{' '}
+            <Link
+              href={`/field/estimates/${project.estimateId}`}
+              style={link}
+            >
+              {project.estimateDisplayId}
+            </Link>
+          </>
+        ) : null}
       </p>
 
       <div style={grid}>
         <div style={card}>
           <p style={cardTitle}>Contract value</p>
           <p style={bigNumber}>{formatCents(project.contractValueCents)}</p>
+        </div>
+        <div style={card}>
+          <p style={cardTitle}>Approved changes</p>
+          <p style={bigNumber}>
+            {progress ? formatCents(progress.approvedChangeOrderCents) : '—'}
+          </p>
+        </div>
+        <div style={card}>
+          <p style={cardTitle}>Current contract</p>
+          <p style={bigNumber}>
+            {progress ? formatCents(progress.currentContractValueCents) : '—'}
+          </p>
+        </div>
+        <div style={card}>
+          <p style={cardTitle}>Billed to date</p>
+          <p style={bigNumber}>
+            {progress ? formatCents(progress.billedToDateCents) : '—'}
+          </p>
         </div>
         <div style={card}>
           <p style={cardTitle}>Earned value</p>
@@ -351,6 +392,48 @@ export default async function AscendProjectDetailPage({ params }: PageProps) {
         </div>
       )}
 
+      <h2 style={sectionTitle}>Change orders ({changeOrders.length})</h2>
+      <LinkChangeOrderForm
+        projectId={project.id}
+        orders={recentOrders.filter((o) => o.customerName === project.customerName)}
+        linkedIds={changeOrders.map((c) => c.changeOrderId)}
+      />
+      {changeOrders.length === 0 ? (
+        <p style={muted}>
+          No change orders linked. Only approved change orders count toward
+          the current contract value.
+        </p>
+      ) : (
+        <div style={card}>
+          <table style={table}>
+            <thead>
+              <tr>
+                <th style={th}>CO</th>
+                <th style={th}>Title</th>
+                <th style={th}>Status</th>
+                <th style={{ ...th, textAlign: 'right' }}>Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              {changeOrders.map((c) => (
+                <tr key={c.changeOrderId}>
+                  <td style={td}>{c.displayId}</td>
+                  <td style={td}>{c.title}</td>
+                  <td style={td}>
+                    <span style={pill(STATUS_COLORS[c.status] ?? A.textDim)}>
+                      {c.status.replaceAll('_', ' ')}
+                    </span>
+                  </td>
+                  <td style={{ ...td, ...money }}>
+                    {formatCents(c.changeAmountCents)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       <h2 style={sectionTitle}>Billing</h2>
       <ScheduleForm
         projectId={project.id}
@@ -415,6 +498,13 @@ export default async function AscendProjectDetailPage({ params }: PageProps) {
                   </td>
                   <td style={td}>
                     <ApplicationActions application={a} />
+                    {a.status === 'approved' &&
+                    !a.invoiceId &&
+                    a.currentDueCents > 0 ? (
+                      <div style={{ marginTop: '6px' }}>
+                        <CreateInvoiceButton applicationId={a.id} />
+                      </div>
+                    ) : null}
                   </td>
                 </tr>
               ))}

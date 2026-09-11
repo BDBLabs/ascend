@@ -17,7 +17,9 @@
 import type { WorkPackageStatus } from './work-package-contract';
 import { getModernizationProject } from './modernization-projects';
 import { listWorkPackages } from './work-packages';
+import { getProjectApprovedChangeValue } from './change-order-links';
 import {
+  getProjectBilledCents,
   summarizeCostsByWorkPackage,
   summarizeProjectCosts,
 } from './project-costs';
@@ -46,6 +48,10 @@ export type ComputeProgressInput = {
   projectId: string;
   displayId: string;
   contractValueCents: number;
+  /** Net approved change-order value; defaults to 0. */
+  approvedChangeOrderCents?: number;
+  /** Invoiced to date; defaults to 0. */
+  billedToDateCents?: number;
   packages: ProgressPackageInput[];
   costTotals: ProgressCostInput;
   packageCosts: ProgressPackageCostInput[];
@@ -67,8 +73,12 @@ export type ProgressPackageReport = {
 export type ProjectProgressReport = {
   projectId: string;
   displayId: string;
-  /** Recorded contract value; approved change orders attach in Phase 6. */
+  /** Recorded base contract value, before change orders. */
   contractValueCents: number;
+  /** Net approved change-order value linked to the project. */
+  approvedChangeOrderCents: number;
+  /** Base plus approved changes, floored at zero. */
+  currentContractValueCents: number;
   packageCount: number;
   /** Earned-value percent, half-up integer 0-100. */
   overallPercentComplete: number;
@@ -82,7 +92,7 @@ export type ProjectProgressReport = {
   projectedMarginCents: number;
   /** Half-up basis points, null when contract value is zero. */
   projectedMarginBps: number | null;
-  /** Pre-billing placeholder (Phase 6). */
+  /** Invoice totals on this project's invoiced applications. */
   billedToDateCents: number;
   remainingBillableCents: number;
   packages: ProgressPackageReport[];
@@ -152,12 +162,20 @@ export function computeProjectProgress(
     input.costTotals.forecast > 0
       ? input.costTotals.forecast
       : input.costTotals.actual + input.costTotals.committed;
-  const margin = input.contractValueCents - forecastFinal;
+  const approvedChange = input.approvedChangeOrderCents ?? 0;
+  const currentContract = Math.max(
+    0,
+    input.contractValueCents + approvedChange,
+  );
+  const billed = input.billedToDateCents ?? 0;
+  const margin = currentContract - forecastFinal;
 
   return {
     projectId: input.projectId,
     displayId: input.displayId,
     contractValueCents: input.contractValueCents,
+    approvedChangeOrderCents: approvedChange,
+    currentContractValueCents: currentContract,
     packageCount: input.packages.length,
     overallPercentComplete: percentOf(earnedTotal, contractTotal),
     earnedValueCents: earnedTotal,
@@ -166,9 +184,9 @@ export function computeProjectProgress(
     committedCostCents: input.costTotals.committed,
     forecastFinalCents: forecastFinal,
     projectedMarginCents: margin,
-    projectedMarginBps: marginBps(margin, input.contractValueCents),
-    billedToDateCents: 0,
-    remainingBillableCents: input.contractValueCents,
+    projectedMarginBps: marginBps(margin, currentContract),
+    billedToDateCents: billed,
+    remainingBillableCents: currentContract - billed,
     packages,
   };
 }
@@ -178,15 +196,20 @@ export async function getProjectProgress(
 ): Promise<ProjectProgressReport | null> {
   const project = await getModernizationProject(projectId);
   if (!project) return null;
-  const [packages, costSummary, packageCosts] = await Promise.all([
-    listWorkPackages({ projectId, limit: 100 }),
-    summarizeProjectCosts(projectId),
-    summarizeCostsByWorkPackage(projectId),
-  ]);
+  const [packages, costSummary, packageCosts, approvedChange, billed] =
+    await Promise.all([
+      listWorkPackages({ projectId, limit: 100 }),
+      summarizeProjectCosts(projectId),
+      summarizeCostsByWorkPackage(projectId),
+      getProjectApprovedChangeValue(projectId),
+      getProjectBilledCents(projectId),
+    ]);
   return computeProjectProgress({
     projectId: project.id,
     displayId: project.displayId,
     contractValueCents: project.contractValueCents,
+    approvedChangeOrderCents: approvedChange,
+    billedToDateCents: billed,
     packages: packages.map((p) => ({
       id: p.id,
       name: p.name,

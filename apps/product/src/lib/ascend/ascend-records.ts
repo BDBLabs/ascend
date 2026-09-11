@@ -118,6 +118,8 @@ export type ModernizationProjectRecord = {
   customerName: string;
   buildingId: string | null;
   buildingName: string | null;
+  estimateId: string | null;
+  estimateDisplayId: string | null;
   status: ProjectStatus;
   /** Integer cents. Phase 1 carries the contract value only; budget/actual/
    * committed/forecast arrive in Phase 3. */
@@ -150,6 +152,8 @@ export function mapModernizationProject(r: Row): ModernizationProjectRecord {
     customerName: (r.customer_name as string) ?? '',
     buildingId: (r.building_id as string | null) ?? null,
     buildingName: (r.building_name as string | null) ?? null,
+    estimateId: (r.estimate_id as string | null) ?? null,
+    estimateDisplayId: (r.estimate_display_id as string | null) ?? null,
     status: r.status as ProjectStatus,
     contractValueCents: Number(r.contract_value_cents ?? 0),
     projectManager: (r.project_manager as string) ?? '',

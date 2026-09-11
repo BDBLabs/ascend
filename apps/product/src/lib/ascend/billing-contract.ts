@@ -167,45 +167,23 @@ export type ApplicationInvoiceLine = {
 };
 
 /**
- * Builds the invoice lines the engine consumes from an approved
- * application. The lines itemize to exactly the application's current
- * amount due (earned − previously billed − retainage + stored), so the
- * invoice total agrees with the billing snapshot by construction. The
- * invoice module owns tax, totals, and issuance; this only translates
- * the frozen billing facts into line items.
+ * Builds the invoice line the engine consumes from an approved
+ * application. Invoice lines cannot post credits (quantity, price, and
+ * total are all CHECKED non-negative), so the frozen breakdown travels
+ * in the invoice notes while the single line carries exactly the
+ * application's amount due — the invoice total agrees with the billing
+ * snapshot by construction. The invoice module owns tax, totals, and
+ * issuance; this only translates the frozen billing fact into a line.
  */
 export function buildApplicationInvoiceLines(input: {
   displayId: string;
   periodNumber: number;
-  earnedValueCents: number;
-  previouslyBilledCents: number;
-  retainageCents: number;
-  storedMaterialsCents: number;
+  currentDueCents: number;
 }): ApplicationInvoiceLine[] {
-  const tag = `application #${input.periodNumber}`;
-  const lines: ApplicationInvoiceLine[] = [
+  return [
     {
-      description: `Progress billing ${input.displayId} — work earned (${tag})`,
-      amountCents: input.earnedValueCents,
+      description: `Progress billing ${input.displayId} — application #${input.periodNumber}`,
+      amountCents: input.currentDueCents,
     },
   ];
-  if (input.previouslyBilledCents > 0) {
-    lines.push({
-      description: `Less previously billed (${tag})`,
-      amountCents: -input.previouslyBilledCents,
-    });
-  }
-  if (input.retainageCents > 0) {
-    lines.push({
-      description: `Less retainage held (${tag})`,
-      amountCents: -input.retainageCents,
-    });
-  }
-  if (input.storedMaterialsCents > 0) {
-    lines.push({
-      description: `Stored materials (${tag})`,
-      amountCents: input.storedMaterialsCents,
-    });
-  }
-  return lines;
 }

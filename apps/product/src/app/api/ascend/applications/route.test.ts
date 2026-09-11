@@ -88,6 +88,7 @@ describe('POST /api/ascend/applications', () => {
       projectId: UUID,
       displayId: 'ASC-0001',
       contractValueCents: 10000000,
+      currentContractValueCents: 10000000,
       earnedValueCents: 1000000,
     } as never);
 

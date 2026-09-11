@@ -117,30 +117,18 @@ describe('validateApplicationDraft', () => {
 });
 
 describe('buildApplicationInvoiceLines', () => {
-  it('itemizes to exactly the amount due', () => {
+  it('emits one engine-compatible line carrying exactly the amount due', () => {
     const lines = buildApplicationInvoiceLines({
       displayId: 'ASC-0001',
       periodNumber: 2,
-      earnedValueCents: 5920000,
-      previouslyBilledCents: 2000000,
-      retainageCents: 592000,
-      storedMaterialsCents: 250000,
-    });
-    const total = lines.reduce((sum, l) => sum + l.amountCents, 0);
-    expect(total).toBe(5920000 - 2000000 - 592000 + 250000);
-    expect(lines).toHaveLength(4);
-  });
-
-  it('emits a single line when only earned value exists', () => {
-    const lines = buildApplicationInvoiceLines({
-      displayId: 'ASC-0001',
-      periodNumber: 1,
-      earnedValueCents: 1000000,
-      previouslyBilledCents: 0,
-      retainageCents: 0,
-      storedMaterialsCents: 0,
+      currentDueCents: 3578000,
     });
     expect(lines).toHaveLength(1);
-    expect(lines[0].amountCents).toBe(1000000);
+    expect(lines[0]).toMatchObject({
+      description: 'Progress billing ASC-0001 — application #2',
+      amountCents: 3578000,
+    });
+    // Engine constraints: non-negative postings only.
+    expect(lines[0].amountCents).toBeGreaterThanOrEqual(0);
   });
 });

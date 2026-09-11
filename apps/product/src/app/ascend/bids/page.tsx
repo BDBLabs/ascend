@@ -4,6 +4,9 @@ import { getFieldPrincipal, withFieldContext } from '@/lib/field-api-auth';
 import { isDatabaseConfigured } from '@/lib/db';
 import { formatCents } from '@/lib/tenant';
 import { listEstimates } from '@/lib/estimates';
+import { listModernizationProjects } from '@/lib/ascend/modernization-projects';
+import { getEstimateProjectMap } from '@/lib/ascend/estimate-links';
+import { LinkEstimateForm } from '../_forms/links';
 import {
   A,
   card,
@@ -44,8 +47,16 @@ export default async function AscendBidsPage() {
     );
   }
 
-  const estimates = await withFieldContext(principal, async () =>
-    listEstimates(),
+  const { estimates, projects, links } = await withFieldContext(
+    principal,
+    async () => {
+      const estimates = await listEstimates();
+      const [projects, links] = await Promise.all([
+        listModernizationProjects({ limit: 100 }),
+        getEstimateProjectMap(estimates.map((e) => e.id)),
+      ]);
+      return { estimates, projects, links };
+    },
   );
 
   return (
@@ -67,6 +78,7 @@ export default async function AscendBidsPage() {
                 <th style={th}>Title</th>
                 <th style={th}>Status</th>
                 <th style={{ ...th, textAlign: 'right' }}>Total</th>
+                <th style={th}>Project</th>
               </tr>
             </thead>
             <tbody>
@@ -86,6 +98,32 @@ export default async function AscendBidsPage() {
                   </td>
                   <td style={{ ...td, ...money }}>
                     {formatCents(e.totals.totalCents)}
+                  </td>
+                  <td style={td}>
+                    {(() => {
+                      const linked = links.get(e.id);
+                      if (linked) {
+                        return (
+                          <Link
+                            href={`/ascend/projects/${linked.projectId}`}
+                            style={link}
+                          >
+                            {linked.projectDisplayId}
+                          </Link>
+                        );
+                      }
+                      if (e.status !== 'signed') return '—';
+                      const candidates = projects.filter(
+                        (p) =>
+                          p.customerId === e.customerId && !p.estimateId,
+                      );
+                      return (
+                        <LinkEstimateForm
+                          estimateId={e.id}
+                          projects={candidates}
+                        />
+                      );
+                    })()}
                   </td>
                 </tr>
               ))}

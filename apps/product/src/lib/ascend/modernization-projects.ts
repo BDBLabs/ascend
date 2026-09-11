@@ -30,6 +30,7 @@ const PROJECT_SELECT = `
     project.*,
     customer.display_name AS customer_name,
     building.name AS building_name,
+    estimate.display_id AS estimate_display_id,
     COALESCE(
       (SELECT array_agg(link.elevator_unit_id)
        FROM project_elevators AS link
@@ -46,6 +47,9 @@ const PROJECT_SELECT = `
   LEFT JOIN buildings AS building
     ON building.id = project.building_id
    AND building.organization_id = project.organization_id
+  LEFT JOIN estimates AS estimate
+    ON estimate.id = project.estimate_id
+   AND estimate.organization_id = project.organization_id
 `;
 
 export async function createModernizationProject(
@@ -68,6 +72,7 @@ export async function createModernizationProject(
      SELECT inserted.*,
             customer.display_name AS customer_name,
             building.name AS building_name,
+            NULL AS estimate_display_id,
             '{}' AS elevator_unit_ids
      FROM inserted
      JOIN customers AS customer

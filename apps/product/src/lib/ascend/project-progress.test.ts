@@ -19,6 +19,11 @@ vi.mock('./work-packages', () => ({
 vi.mock('./project-costs', () => ({
   summarizeProjectCosts: vi.fn(),
   summarizeCostsByWorkPackage: vi.fn(),
+  getProjectBilledCents: vi.fn(),
+}));
+
+vi.mock('./change-order-links', () => ({
+  getProjectApprovedChangeValue: vi.fn(),
 }));
 
 import {
@@ -29,14 +34,18 @@ import {
 import { getModernizationProject } from './modernization-projects';
 import { listWorkPackages } from './work-packages';
 import {
+  getProjectBilledCents,
   summarizeCostsByWorkPackage,
   summarizeProjectCosts,
 } from './project-costs';
+import { getProjectApprovedChangeValue } from './change-order-links';
 
 const getProjectMock = vi.mocked(getModernizationProject);
 const listPackagesMock = vi.mocked(listWorkPackages);
 const summarizeMock = vi.mocked(summarizeProjectCosts);
 const packageCostsMock = vi.mocked(summarizeCostsByWorkPackage);
+const billedMock = vi.mocked(getProjectBilledCents);
+const changeValueMock = vi.mocked(getProjectApprovedChangeValue);
 
 const zeroCosts = { budget: 0, actual: 0, committed: 0, forecast: 0 };
 
@@ -141,6 +150,32 @@ describe('computeProjectProgress', () => {
     expect(report.actualCostCents).toBe(1000000);
   });
 
+  it('folds approved changes into contract, margin, and remaining', () => {
+    const report = computeProjectProgress({
+      projectId: 'project-1',
+      displayId: 'ASC-0001',
+      contractValueCents: 10000000,
+      approvedChangeOrderCents: 1500000,
+      billedToDateCents: 2000000,
+      packages: [
+        {
+          id: 'p1',
+          name: 'Controller',
+          status: 'in_progress',
+          percentComplete: 40,
+          contractValueCents: 6800000,
+        },
+      ],
+      costTotals: { budget: 0, actual: 1000000, committed: 0, forecast: 0 },
+      packageCosts: [],
+    });
+    expect(report.currentContractValueCents).toBe(11500000);
+    // margin over the current contract, not the base
+    expect(report.projectedMarginCents).toBe(11500000 - 1000000);
+    expect(report.billedToDateCents).toBe(2000000);
+    expect(report.remainingBillableCents).toBe(11500000 - 2000000);
+  });
+
   it('reports null margin bps on a zero contract', () => {
     const report = computeProjectProgress({
       projectId: 'project-1',
@@ -189,6 +224,8 @@ describe('getProjectProgress', () => {
     listPackagesMock.mockReset();
     summarizeMock.mockReset();
     packageCostsMock.mockReset();
+    billedMock.mockReset();
+    changeValueMock.mockReset();
     queryMock.mockReset();
   });
 
@@ -218,12 +255,32 @@ describe('getProjectProgress', () => {
       totalsByKind: { budget: 4500000, actual: 3000000, committed: 0, forecast: 0 },
     } as never);
     packageCostsMock.mockResolvedValueOnce([] as never);
+    changeValueMock.mockResolvedValueOnce(500000);
+    billedMock.mockResolvedValueOnce(1000000);
 
     const report = await getProjectProgress('project-1');
     expect(report).toMatchObject({
       projectId: 'project-1',
       earnedValueCents: 2720000,
       actualCostCents: 3000000,
+      approvedChangeOrderCents: 500000,
+      currentContractValueCents: 7300000,
+      billedToDateCents: 1000000,
+      remainingBillableCents: 6300000,
     });
+  });
+
+  it('floors a deeply credited contract at zero', () => {
+    const report = computeProjectProgress({
+      projectId: 'project-1',
+      displayId: 'ASC-0001',
+      contractValueCents: 100000,
+      approvedChangeOrderCents: -500000,
+      packages: [],
+      costTotals: { budget: 0, actual: 0, committed: 0, forecast: 0 },
+      packageCosts: [],
+    });
+    expect(report.currentContractValueCents).toBe(0);
+    expect(report.projectedMarginBps).toBeNull();
   });
 });

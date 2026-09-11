@@ -234,3 +234,19 @@ describe('summarizeCostsByWorkPackage', () => {
     ]);
   });
 });
+
+describe('getProjectBilledCents', () => {
+  beforeEach(() => {
+    queryMock.mockReset();
+  });
+
+  it('sums issued-and-beyond invoices on invoiced applications', async () => {
+    const { getProjectBilledCents } = await import('./project-costs');
+    queryMock.mockResolvedValueOnce([{ total: '900000' }]);
+    await expect(getProjectBilledCents(UUID)).resolves.toBe(900000);
+    const [sql, params] = queryMock.mock.calls[0] as [string, unknown[]];
+    expect(sql).toContain("app.status = 'invoiced'");
+    expect(sql).toContain("'issued', 'partially_paid', 'paid'");
+    expect(params).toEqual([UUID]);
+  });
+});

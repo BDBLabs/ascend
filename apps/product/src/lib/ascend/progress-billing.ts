@@ -200,7 +200,7 @@ export async function createApplicationDraft(
 
   const storedMaterials = input.storedMaterialsCents ?? 0;
   const amounts = computeBillingAmounts({
-    contractValueCents: progress.contractValueCents,
+    contractValueCents: progress.currentContractValueCents,
     earnedValueCents: progress.earnedValueCents,
     previouslyBilledCents: previouslyBilled,
     retainagePercent,
@@ -237,7 +237,7 @@ export async function createApplicationDraft(
     [
       billingPeriodId,
       period.project_id,
-      progress.contractValueCents,
+      progress.currentContractValueCents,
       progress.earnedValueCents,
       previouslyBilled,
       retainagePercent,

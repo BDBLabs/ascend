@@ -262,3 +262,25 @@ export async function summarizeCostsByWorkPackage(
     totals,
   }));
 }
+
+/**
+ * Billed to date: invoice totals for this project's invoiced
+ * applications, counting issued invoices and beyond. Drafts and
+ * cancelled invoices are not billings. Lives beside the other
+ * project financial rollups so project-progress has a cycle-free
+ * dependency direction.
+ */
+export async function getProjectBilledCents(projectId: string): Promise<number> {
+  const rows = (await db().query(
+    `SELECT COALESCE(SUM(inv.total_cents), 0)::bigint AS total
+     FROM progress_applications AS app
+     JOIN invoices AS inv
+       ON inv.id = app.invoice_id
+      AND inv.organization_id = app.organization_id
+     WHERE app.project_id = $1::uuid
+       AND app.status = 'invoiced'
+       AND inv.status IN ('issued', 'partially_paid', 'paid')`,
+    [projectId],
+  )) as Array<{ total: string | number }>;
+  return Number(rows[0]?.total ?? 0);
+}
