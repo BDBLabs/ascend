@@ -1,7 +1,8 @@
 # ADR-001: Actor-Centric Governance for Intelligent Application Behavior
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-08-21
+- **Accepted:** 2026-09-25 (owner authorization; implementation verified: `ai:` namespace enforced in `apps/product/src/lib/ai-actor-context.ts`, tool registry in `apps/product/src/lib/ai-tools/` + `packages/ai/src/agent/registry.ts`)
 - **Scope:** JBox application and reusable ELEANOR governance architecture
 - **Decision type:** Foundational architecture
 
@@ -251,4 +252,4 @@ Auditability does not mean logging everything. Evidence should be proportional t
 
 ## Status
 
-Proposed for adoption. Initial implementation is being developed on `feat/jbox-ai-tool-authority`.
+Accepted 2026-09-25 on owner authority. Initial implementation present on `main` (actor-context bridge, `ai:` namespace guard, tool registry); higher-risk tool confirmations and full audit rollout continue under this decision.
