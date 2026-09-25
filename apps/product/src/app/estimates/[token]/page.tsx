@@ -49,6 +49,32 @@ export default async function CustomerEstimatePage({
     const document = await loadCustomerEstimateDocument(token);
     if (!document) notFound();
 
+    if (document.signed === 'integrity-failure') {
+      // Stored evidence and hash disagree: say so. Never re-render a signed
+      // document from current data.
+      return (
+        <main className={styles.unavailable}>
+          <h1>This document cannot be verified.</h1>
+          <p>Its signed record failed an integrity check. Contact the business that sent it.</p>
+        </main>
+      );
+    }
+
+    // A signed estimate shows the business identity exactly as it was when it
+    // was signed (stored evidence); only an unsigned draft uses current config.
+    if (document.signed) {
+      const business = document.signed.business;
+      return (
+        <EstimateView
+          token={token}
+          document={document}
+          intent={null}
+          companyName={business.name || null}
+          contact={{ phone: business.phone, email: business.email }}
+        />
+      );
+    }
+
     const config = await loadInForceConfig();
     return (
       <EstimateView

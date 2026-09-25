@@ -17,6 +17,9 @@ export type CustomerAccessGrantRecord = {
   documentId: string;
   purpose: 'sign' | 'view';
   expiresAt: string;
+  /** Content hash of the document version this link was issued for (037). */
+  resourceVersion: string | null;
+  deliveryId: string | null;
 };
 
 type GrantRow = {
@@ -30,6 +33,8 @@ type GrantRow = {
   key_version: string;
   expires_at: string | Date;
   expires_at_token?: string;
+  resource_version?: string | null;
+  delivery_id?: string | null;
 };
 
 export function splitPurpose(purpose: CustomerAccessPurpose): {
@@ -55,6 +60,8 @@ function toRecord(row: GrantRow): CustomerAccessGrantRecord {
     documentId: row.document_id,
     purpose: row.purpose,
     expiresAt,
+    resourceVersion: row.resource_version ?? null,
+    deliveryId: row.delivery_id ?? null,
   };
 }
 
@@ -182,7 +189,9 @@ export async function verifyCustomerAccessGrant(options: {
     grantId: grant.id,
     organizationId: grant.organization_id,
     resourceInternalId: options.documentId,
-    resourceVersionId: options.resourceVersionId ?? '',
+    // The version the link was issued for is stored on the grant (037) and is
+    // part of the HMAC scope; the stored value is authoritative.
+    resourceVersionId: grant.resource_version ?? options.resourceVersionId ?? '',
     purpose: options.purpose,
     keyVersion: grant.key_version,
   };

@@ -40,6 +40,7 @@ INSERT INTO expected_acl (role_name, signature) VALUES
   ('contractor_app', 'create_dispatch_ticket(text,text,text,text,text,text,text,text,timestamp with time zone)'),
   ('contractor_app', 'lookup_dispatch_ticket(text)'),
   ('contractor_app', 'tenant_domain_add(text,text)'),
+  ('contractor_app', 'create_estimate_delivery(uuid,uuid,timestamp with time zone,text,text,uuid,uuid,text,uuid,text,text,timestamp with time zone,uuid,jsonb)'),
   ('contractor_app', 'tenant_domain_challenge(uuid)'),
   ('contractor_app', 'tenant_domain_mark_verified(uuid,text)'),
   ('contractor_app', 'tenant_domain_remove(uuid)'),

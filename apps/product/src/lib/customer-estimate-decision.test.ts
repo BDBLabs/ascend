@@ -7,8 +7,10 @@ vi.mock('@/lib/db', () => ({
 }));
 
 vi.mock('@/lib/customer-access-grants', () => ({
-  verifyCustomerAccessGrant: vi.fn().mockResolvedValue({ ok: true }),
-  consumeCustomerAccessGrant: vi.fn().mockResolvedValue(undefined),
+  verifyCustomerAccessGrant: vi.fn().mockResolvedValue({
+    ok: true,
+    grant: { id: 'grant-1', resourceVersion: null, deliveryId: null },
+  }),
 }));
 
 vi.mock('@/lib/estimates', () => ({

@@ -364,7 +364,11 @@ BEGIN
      OR actions NOT LIKE '%mfa.disable%' OR actions NOT LIKE '%password.initial%' THEN
     RAISE EXCEPTION 'Identity audit trail is incomplete: %', actions;
   END IF;
-  IF EXISTS (SELECT 1 FROM identity_audit_events WHERE actor LIKE 'operator:%' AND action LIKE 'staff.%' AND actor NOT IN ('operator:alice', 'operator:bob')) THEN
+  IF EXISTS (
+    SELECT 1 FROM identity_audit_events
+    WHERE platform_user_id = (SELECT v FROM t WHERE k = 'user')::uuid
+      AND action LIKE 'staff.%' AND actor NOT IN ('operator:alice', 'operator:bob')
+  ) THEN
     RAISE EXCEPTION 'Audit actor mismatch.';
   END IF;
   BEGIN

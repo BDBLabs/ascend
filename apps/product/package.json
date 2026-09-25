@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "test:integration": "vitest run src/lib/auth.integration.test.ts"
+    "test:integration": "vitest run src/lib/auth.integration.test.ts src/lib/estimate-evidence.integration.test.ts"
   },
   "dependencies": {
     "@contractor-platform/ai": "0.1.0",

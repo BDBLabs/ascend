@@ -103,6 +103,26 @@ export async function loadInForceConfig(): Promise<ConfigV1 | null> {
 }
 
 /**
+ * The in-force configuration with its row identity, for records that must
+ * name the exact configuration version they were produced under (signed
+ * estimate evidence).
+ */
+export async function loadInForceConfigRecord(): Promise<{ id: string; version: number; config: ConfigV1 } | null> {
+  const rows = await db().query(
+    `SELECT id, version, document
+       FROM configuration_versions
+      WHERE status = 'approved'
+        AND superseded_at IS NULL
+      ORDER BY version DESC
+      LIMIT 1`,
+    [],
+  );
+  const row = rows[0];
+  if (!row?.document) return null;
+  return { id: String(row.id), version: Number(row.version), config: validateConfigDocument(row.document) };
+}
+
+/**
  * Loads everything a storefront page needs: the resolved tenant and the single
  * approved, in-force configuration document. A tenant with no approved config
  * yet reads as not-configured, so the storefront never renders half a tenant.

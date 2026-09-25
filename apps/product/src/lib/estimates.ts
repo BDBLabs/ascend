@@ -1,7 +1,15 @@
 import 'server-only';
 import { DEFAULT_DOCUMENT_PREFIXES } from '@contractor-platform/configuration';
 import { computeTotals, CURRENT_MONEY_VERSION, divRoundHalfUp, type Totals } from '@contractor-platform/money';
-import { contentHash } from '@/lib/estimate-document';
+import {
+  buildSignedDocument,
+  businessFromConfig,
+  CONSENT_TEXT_VERSION,
+  draftContentHash,
+  HASH_ALGORITHM,
+  SIGNED_SCHEMA_VERSION,
+} from '@/lib/estimate-evidence';
+import { loadInForceConfigRecord } from '@/lib/tenant';
 import { canTransition, type EstimateDraftInput, type EstimateStatus } from '@/lib/estimate-contract';
 import { requireOrganizationContext } from '@/lib/organization-context-store';
 import { db } from '@/lib/db';
@@ -74,11 +82,12 @@ function mapCustomer(header: HeaderRow): EstimateRecord['customer'] {
   // renders the live directory row.
   const signed = header.status === 'signed';
   return {
-    name: (signed ? header.customer_name : header.customer_display_name) as string,
-    phone: (signed ? header.customer_phone : header.customer_phone_live) as string,
-    email: (signed ? header.customer_email : header.customer_email_live) as string,
-    address: (signed ? header.customer_address : header.customer_address_live) as string,
-    town: (signed ? header.customer_town : header.customer_town_live) as string,
+    // Snapshot columns store NULL for an empty value; present both as ''.
+    name: ((signed ? header.customer_name : header.customer_display_name) ?? '') as string,
+    phone: ((signed ? header.customer_phone : header.customer_phone_live) ?? '') as string,
+    email: ((signed ? header.customer_email : header.customer_email_live) ?? '') as string,
+    address: ((signed ? header.customer_address : header.customer_address_live) ?? '') as string,
+    town: ((signed ? header.customer_town : header.customer_town_live) ?? '') as string,
     project: header.title as string,
   };
 }
@@ -419,11 +428,25 @@ export async function updateEstimate(
   return { ok: true, value: fresh! };
 }
 
+/**
+ * A customer decision arriving through a sign link. The grant must still be
+ * active, unexpired and bound to the draft content being signed; it is consumed
+ * in the SAME statement as the estimate transition (P3.2), so a crash can never
+ * leave a terminal estimate with a live sign link, or consume a link without
+ * the decision.
+ */
+export type DecisionGrant = {
+  id: string;
+  resourceVersion: string | null;
+  deliveryId: string | null;
+};
+
 export async function signEstimate(
   id: string,
   args: { signerName: string; signatureContext: string; signatureImage?: string | null },
   ctx: EstimateEventContext,
-): Promise<{ ok: true; value: EstimateRecord } | { ok: false; reason: 'not-found' | 'locked' | 'invalid-context' }> {
+  grant: DecisionGrant | null = null,
+): Promise<{ ok: true; value: EstimateRecord } | { ok: false; reason: 'not-found' | 'locked' | 'invalid-context' | 'superseded' }> {
   if (args.signatureContext !== 'protected-published') return { ok: false, reason: 'invalid-context' };
   const signatureImage = args.signatureImage ?? null;
   if (signatureImage !== null && signatureImage.length > 262144) {
@@ -433,59 +456,90 @@ export async function signEstimate(
   const current = await getEstimate(id);
   if (!current) return { ok: false, reason: 'not-found' };
   if (!canTransition(current.status, 'signed')) return { ok: false, reason: 'locked' };
+  if (grant?.resourceVersion && grant.resourceVersion !== draftContentHash(current)) {
+    return { ok: false, reason: 'superseded' };
+  }
 
-  // Build and hash the immutable document from a fresh authoritative recompute.
-  const frozen = {
-    displayId: current.displayId,
-    documentTemplateVersion: current.documentTemplateVersion,
-    customer: current.customer,
-    scope: current.scope,
-    exclusions: current.exclusions,
-    discountMillipercent: current.discountMillipercent,
-    surchargeCents: current.surchargeCents,
-    taxRateMillipercent: current.taxRateMillipercent,
-    depositCents: current.depositCents,
-    moneyVersion: current.moneyVersion,
-    lineItems: current.lineItems,
-    totals: current.totals,
-  };
-  const hash = contentHash(frozen);
+  // The signed document: estimate content + the governing configuration and
+  // business identity as rendered now + consent statement + signer. Its
+  // canonical text and hash become immutable evidence (migration 037).
+  const configRecord = await loadInForceConfigRecord();
+  const signedAt = new Date().toISOString();
+  const evidence = buildSignedDocument({
+    estimate: current,
+    business: businessFromConfig(configRecord?.config ?? null, configRecord),
+    signerName: args.signerName,
+    signedAt,
+    context: args.signatureContext,
+    deliveryId: grant?.deliveryId ?? null,
+  });
 
   const sql = db();
   const actorId = requireOrganizationContext().actorId;
   const rows = (await sql.query(
-    `WITH updated AS (
+    `WITH grant_ok AS (
+       SELECT id FROM customer_access_grants
+       WHERE id = $15::uuid AND status = 'active' AND purpose = 'sign'
+         AND document_id = $1 AND expires_at > now()
+     ),
+     updated AS (
        UPDATE estimates
-       SET status = 'signed', signed_by_name = $2, signed_at = now(),
+       SET status = 'signed', signed_by_name = $2, signed_at = $16::timestamptz,
            content_hash = $3, updated_at = now(),
            customer_name = $4, customer_phone = $5, customer_email = $6,
            customer_address = $7, customer_town = $8,
            signature_context = $9, signature_image = $10
        WHERE id = $1 AND status = 'draft' AND updated_at = $11::timestamptz
+         AND ($15::uuid IS NULL OR EXISTS (SELECT 1 FROM grant_ok))
        RETURNING id
+     ),
+     consumed AS (
+       UPDATE customer_access_grants
+       SET status = 'consumed', consumed_at = now(), updated_at = now()
+       WHERE id = $15::uuid AND status = 'active' AND EXISTS (SELECT 1 FROM updated)
+     ),
+     evidence AS (
+       INSERT INTO estimate_signed_evidence
+         (estimate_id, configuration_version_id, delivery_id, schema_version, hash_algorithm,
+          canonical_text, content_hash, consent_text_version, signer_name, signed_at,
+          signer_ip, signer_user_agent)
+       SELECT id, $17::uuid, $18::uuid, $19, $20, $21, $3, $22, $2, $16::timestamptz, $13, $14
+       FROM updated
      ),
      logged AS (
        INSERT INTO estimate_events (organization_id, estimate_id, event, actor_id, meta)
        SELECT app_require_organization_id(), id, 'signed', $12,
-               jsonb_build_object('content_hash', $3::text, 'request_ip', $13::text, 'user_agent', $14::text)
+               jsonb_build_object('content_hash', $3::text, 'request_ip', $13::text,
+                                  'user_agent', $14::text, 'grant_id', $15::text,
+                                  'consent_text_version', $22::text)
        FROM updated
      )
      SELECT id FROM updated`,
     [
       id,
       args.signerName,
-      hash,
+      evidence.hash,
       current.customer.name,
-      current.customer.phone,
-      current.customer.email,
-      current.customer.address,
-      current.customer.town,
+      // Snapshot columns allow NULL or a non-empty value; a customer without a
+      // phone/email/address must not make signing fail.
+      current.customer.phone || null,
+      current.customer.email || null,
+      current.customer.address || null,
+      current.customer.town || null,
       args.signatureContext,
       signatureImage,
       current.updatedAt,
       actorId,
       ctx.ip,
       ctx.userAgent,
+      grant?.id ?? null,
+      signedAt,
+      configRecord?.id ?? null,
+      grant?.deliveryId ?? null,
+      SIGNED_SCHEMA_VERSION,
+      HASH_ALGORITHM,
+      evidence.canonicalText,
+      CONSENT_TEXT_VERSION,
     ],
   )) as HeaderRow[];
   if (!rows.length) return { ok: false, reason: 'locked' };
@@ -496,6 +550,7 @@ export async function signEstimate(
 export async function declineEstimate(
   id: string,
   ctx: EstimateEventContext,
+  grant: DecisionGrant | null = null,
 ): Promise<{ ok: true; value: EstimateRecord } | { ok: false; reason: 'not-found' | 'locked' }> {
   const sql = db();
   const actorId = requireOrganizationContext().actorId;
@@ -504,19 +559,30 @@ export async function declineEstimate(
   if (!canTransition(current[0].status as EstimateStatus, 'declined')) return { ok: false, reason: 'locked' };
 
   const rows = (await sql.query(
-    `WITH updated AS (
+    `WITH grant_ok AS (
+       SELECT id FROM customer_access_grants
+       WHERE id = $5::uuid AND status = 'active' AND purpose = 'sign'
+         AND document_id = $1 AND expires_at > now()
+     ),
+     updated AS (
        UPDATE estimates SET status = 'declined', declined_at = now(), updated_at = now()
        WHERE id = $1 AND status = 'draft'
+         AND ($5::uuid IS NULL OR EXISTS (SELECT 1 FROM grant_ok))
        RETURNING id
+     ),
+     consumed AS (
+       UPDATE customer_access_grants
+       SET status = 'consumed', consumed_at = now(), updated_at = now()
+       WHERE id = $5::uuid AND status = 'active' AND EXISTS (SELECT 1 FROM updated)
      ),
      logged AS (
        INSERT INTO estimate_events (organization_id, estimate_id, event, actor_id, meta)
        SELECT app_require_organization_id(), id, 'declined', $2,
-               jsonb_build_object('request_ip', $3::text, 'user_agent', $4::text)
+               jsonb_build_object('request_ip', $3::text, 'user_agent', $4::text, 'grant_id', $5::text)
        FROM updated
      )
      SELECT id FROM updated`,
-    [id, actorId, ctx.ip, ctx.userAgent],
+    [id, actorId, ctx.ip, ctx.userAgent, grant?.id ?? null],
   )) as HeaderRow[];
   if (!rows.length) return { ok: false, reason: 'locked' };
   const declined = await getEstimate(id);

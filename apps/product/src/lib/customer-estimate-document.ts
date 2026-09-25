@@ -6,6 +6,11 @@ import {
 } from '@/lib/customer-access-tokens';
 import { verifyCustomerAccessGrant } from '@/lib/customer-access-grants';
 import { db } from '@/lib/db';
+import {
+  draftContentHash,
+  loadVerifiedEvidence,
+  type SignedEstimateDocument,
+} from '@/lib/estimate-evidence';
 import { getEstimate, type EstimateRecord } from '@/lib/estimates';
 
 /**
@@ -19,6 +24,14 @@ export type CustomerEstimateDocument = {
   estimate: EstimateRecord;
   purpose: 'view' | 'sign';
   expiresAt: string;
+  /** The draft changed after this link was sent; it can no longer be decided. */
+  superseded: boolean;
+  /**
+   * For a signed estimate: the verified stored evidence (what was signed,
+   * including the business identity shown), or 'integrity-failure' when the
+   * stored text, its hash and the estimate disagree. Never current config.
+   */
+  signed: SignedEstimateDocument | 'integrity-failure' | null;
 };
 
 type GrantRow = {
@@ -35,10 +48,10 @@ export async function loadCustomerEstimateDocument(
   // Token-only URL: resolve the grant first (RLS-scoped to the tenant context
   // the customer host established), then run canonical verification.
   const rows = (await db().query(
-    `SELECT grant.id, grant.document_id, grant.purpose
-       FROM customer_access_grants AS grant
-      WHERE grant.token_hash = $1
-        AND grant.document_type = 'estimate'
+    `SELECT access_grant.id, access_grant.document_id, access_grant.purpose
+       FROM customer_access_grants AS access_grant
+      WHERE access_grant.token_hash = $1
+        AND access_grant.document_type = 'estimate'
       LIMIT 1`,
     [hashCustomerAccessToken(token)],
   )) as GrantRow[];
@@ -58,9 +71,21 @@ export async function loadCustomerEstimateDocument(
   const estimate = await getEstimate(grant.document_id);
   if (!estimate) return null;
 
+  let signed: CustomerEstimateDocument['signed'] = null;
+  if (estimate.status === 'signed') {
+    const evidence = await loadVerifiedEvidence(estimate);
+    // Estimates signed before migration 037 have no evidence row; everything
+    // signed since must verify, and a mismatch is surfaced, never papered over.
+    signed = evidence.ok ? evidence.document : evidence.reason === 'integrity' ? 'integrity-failure' : null;
+  }
+
   return {
     estimate,
     purpose: grant.purpose,
     expiresAt: verified.grant.expiresAt,
+    superseded: estimate.status === 'draft'
+      && verified.grant.resourceVersion !== null
+      && verified.grant.resourceVersion !== draftContentHash(estimate),
+    signed,
   };
 }
