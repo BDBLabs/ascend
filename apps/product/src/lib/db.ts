@@ -1,12 +1,14 @@
 import 'server-only';
 
 import pg from 'pg';
+import { createRuntimeGuard, ENVIRONMENT_REGISTRY } from '@contractor-platform/database';
 import { requireOrganizationContext } from '@/lib/organization-context-store';
 
 type QueryRows = Array<Record<string, unknown>>;
 type Statement = { text: string; values: readonly unknown[] };
 
 let pool: pg.Pool | null = null;
+let guard: ReturnType<typeof createRuntimeGuard> | null = null;
 let tenantClient: ScopedSql | null = null;
 let platformClient: ScopedSql | null = null;
 
@@ -32,8 +34,16 @@ function connectionPool() {
   const connectionString = process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL;
   if (!connectionString) throw new Error('DATABASE_URL is not configured.');
   if (!pool) {
-    pool = new pg.Pool({
+    // Environment identity (P1.3) + explicit TLS, verify-full off loopback
+    // (P4.3). Throws before the pool exists when the endpoint belongs to
+    // another environment; the stamp is checked on the first connection.
+    guard = createRuntimeGuard({
       connectionString,
+      env: process.env,
+      registry: ENVIRONMENT_REGISTRY,
+    });
+    pool = new pg.Pool({
+      ...guard.config,
       max: Number(process.env.DATABASE_POOL_MAX ?? 10),
       idleTimeoutMillis: 30_000,
       connectionTimeoutMillis: 10_000,
@@ -101,6 +111,7 @@ function createRoleExecutor(
   return async (statements) => {
     const client = await connectionPool().connect();
     try {
+      await guard?.verifyStamp(client);
       await client.query('BEGIN');
       await client.query(`SET LOCAL ROLE ${role}`);
       for (const statement of prelude()) {

@@ -44,11 +44,14 @@ with `--adopt=001_foundation.sql` (records without executing), then `002` was ap
 the runner. From here, use the runner and never `psql -f` a migration:
 
 ```bash
-npm run db:status                                  # development
-npm run db:migrate
-node --env-file-if-exists=.env.neon.preview.local    packages/database/migrate.mjs
-node --env-file-if-exists=.env.neon.production.local packages/database/migrate.mjs
+JBOX_ENVIRONMENT=development npm run db:status     # development (.env.local)
+JBOX_ENVIRONMENT=development npm run db:migrate
+JBOX_ENVIRONMENT=preview    node --env-file-if-exists=.env.neon.preview.local    packages/database/migrate.mjs
+JBOX_ENVIRONMENT=production node --env-file-if-exists=.env.neon.production.local packages/database/migrate.mjs --production
 ```
+
+Every tool refuses to run without `JBOX_ENVIRONMENT` and refuses a target that belongs to a
+different environment — see [Environment identity](#environment-identity).
 
 Production verified read-only after `002`: 8 tables, **0** RLS-enabled-but-not-forced, **0**
 roles holding `BYPASSRLS`, **0** nullable `organization_id`, 0 business rows. The destructive
@@ -304,3 +307,61 @@ pooler. Keep both scoped.
   `BYPASSRLS` silently defeats `FORCE ROW LEVEL SECURITY`, so the protection would look
   present while being absent.
 - Do not run `isolation.sql` against production. It writes.
+
+
+## Environment identity
+
+REMEDIATION_PLAN.md P1.3. The assurance review found `apps/control/.env.local` pointing local
+control development at the **production** branch. Two independent checks now make that a
+refusal instead of a silent production write.
+
+**1. Declared environment.** Every operator tool requires `JBOX_ENVIRONMENT`
+(`development`, `preview`, `production`, `ci`, `test`). The apps derive it from `VERCEL_ENV`
+(an explicit `JBOX_ENVIRONMENT` must agree); a production build outside Vercel (Fly) must
+declare it.
+
+**2. Pre-connect endpoint registry.** `config/database-environments.json` (committed, no
+secrets) maps each Neon endpoint id — the `ep-...` prefix of the host, without `-pooler` — to
+exactly one environment. Tools refuse an endpoint that is unregistered or registered to a
+different environment *before connecting*; the apps refuse one registered to a different
+environment. Loopback databases are accepted only for `development`, `ci`, `test`.
+
+> **Operator action:** fill in `endpointIds` for each branch (Neon console → Branch →
+> Compute). Until they are registered, tools refuse Neon targets — deliberately.
+
+**3. Post-connect stamp.** The first migration run on a database creates
+`public._jbox_environment` holding the declared environment. Every tool and both apps then
+refuse a database whose stamp differs from their environment, before any statement of their
+own. A Neon child branch inherits its parent's stamp, so a branch created from production
+reads `production` until an operator re-stamps it:
+
+```bash
+JBOX_ENVIRONMENT=development npm run db:stamp -- --from=production
+```
+
+`stamp` refuses to stamp *to* production and refuses an endpoint registered to another
+environment, so the production branch itself cannot be re-labelled.
+
+**Tool policy.** `db:verify` (and every `checks/*.sql` suite) and both seeds never run against
+production. `db:migrate` runs against production only with `JBOX_ENVIRONMENT=production`
+**and** `--production`.
+
+**Rotation.** Any credential that has lived in a file for the wrong environment (the control
+`.env.local` above) must be rotated: re-run `scripts/provision-neon-branch.mjs … recover-existing`
+after resetting the role password in Neon, and replace the file with one written for the
+correct branch.
+
+### TLS
+
+All pools and tools use `pgConnectionConfig()` (`packages/database/src/runtime-contract.mjs`):
+`sslmode`/`channel_binding` are removed from the URL and TLS is set explicitly — full
+certificate and hostname verification for every non-loopback host, no TLS on loopback. This
+removes node-postgres' "sslmode=require is treated as verify-full" warning by making
+verify-full the stated behaviour.
+
+### Role memberships
+
+`scripts/provision-neon-branch.mjs` now grants `jbox_control` both `control_app` and
+`contractor_app` (provisioning writes tenant content as `contractor_app`) and verifies the exact
+membership sets. Branches provisioned before this fix (development, preview) are repaired by
+running it with `recover-existing`, which applies the missing grant idempotently.

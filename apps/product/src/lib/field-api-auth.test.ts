@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { resolveDevelopmentFieldPrincipal } from '@/lib/field-api-auth';
+import {
+  assertNoDemoPrincipalInProduction,
+  resolveDevelopmentFieldPrincipal,
+} from '@/lib/field-api-auth';
 
 const ORG_ID = 'org_demo_123';
 
@@ -15,6 +18,8 @@ afterEach(() => {
   delete process.env.FIELD_DEMO_ALLOW_IN_PRODUCTION;
   delete process.env.DEVELOPMENT_FIELD_ORGANIZATION_ID;
   delete process.env.NODE_ENV;
+  delete process.env.VERCEL_ENV;
+  delete process.env.JBOX_ENVIRONMENT;
   vi.restoreAllMocks();
 });
 
@@ -53,7 +58,23 @@ describe('resolveDevelopmentFieldPrincipal', () => {
     expect(warn).toHaveBeenCalledOnce();
   });
 
-  it('resolves the demo principal in production only with the explicit acknowledgement', async () => {
+  it('never resolves the demo principal on a production deployment, acknowledgement or not', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    for (const deployment of [{ VERCEL_ENV: 'production' }, { JBOX_ENVIRONMENT: 'production' }]) {
+      setEnv({
+        NODE_ENV: 'production',
+        ...deployment,
+        FIELD_DEMO_MODE: '1',
+        FIELD_DEMO_ALLOW_IN_PRODUCTION: '1',
+        DEVELOPMENT_FIELD_ORGANIZATION_ID: ORG_ID,
+      });
+      await expect(resolveDevelopmentFieldPrincipal()).resolves.toBeNull();
+      delete process.env.VERCEL_ENV;
+      delete process.env.JBOX_ENVIRONMENT;
+    }
+  });
+
+  it('resolves the demo principal on a production-built sandbox only with the explicit acknowledgement', async () => {
     setEnv({
       NODE_ENV: 'production',
       FIELD_DEMO_MODE: '1',
@@ -68,5 +89,21 @@ describe('resolveDevelopmentFieldPrincipal', () => {
   it('returns null in production when demo mode is unset', async () => {
     setEnv({ NODE_ENV: 'production', DEVELOPMENT_FIELD_ORGANIZATION_ID: ORG_ID });
     await expect(resolveDevelopmentFieldPrincipal()).resolves.toBeNull();
+  });
+});
+
+describe('assertNoDemoPrincipalInProduction (startup invariant)', () => {
+  it('refuses to start a production deployment carrying any demo variable', () => {
+    expect(() => assertNoDemoPrincipalInProduction({ VERCEL_ENV: 'production', FIELD_DEMO_MODE: '1' } as NodeJS.ProcessEnv))
+      .toThrow(/FIELD_DEMO_MODE/);
+    expect(() => assertNoDemoPrincipalInProduction({
+      JBOX_ENVIRONMENT: 'production',
+      DEVELOPMENT_FIELD_ORGANIZATION_ID: ORG_ID,
+    } as NodeJS.ProcessEnv)).toThrow(/DEVELOPMENT_FIELD_ORGANIZATION_ID/);
+  });
+
+  it('allows a clean production deployment and any non-production one', () => {
+    expect(() => assertNoDemoPrincipalInProduction({ VERCEL_ENV: 'production' } as NodeJS.ProcessEnv)).not.toThrow();
+    expect(() => assertNoDemoPrincipalInProduction({ VERCEL_ENV: 'preview', FIELD_DEMO_MODE: '1' } as NodeJS.ProcessEnv)).not.toThrow();
   });
 });

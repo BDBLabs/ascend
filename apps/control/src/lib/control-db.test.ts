@@ -3,7 +3,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const { statements, released, behavior } = vi.hoisted(() => ({
   statements: [] as string[],
   released: { count: 0 },
-  behavior: { failOn: undefined as string | undefined },
+  behavior: {
+    failOn: undefined as string | undefined,
+    stamp: null as string | null,
+  },
 }));
 
 vi.mock('pg', () => {
@@ -12,6 +15,12 @@ vi.mock('pg', () => {
       return {
         query: async (text: string) => {
           const normalized = String(text).replace(/\s+/g, ' ').trim();
+          // The one-time environment-stamp probe (P1.3) is not part of the
+          // transaction under test; answer it from `behavior.stamp`.
+          if (normalized.includes('_jbox_environment')) {
+            if (normalized.includes('to_regclass')) return { rows: [{ present: behavior.stamp !== null }] };
+            return { rows: [{ environment: behavior.stamp }] };
+          }
           statements.push(normalized);
           if (behavior.failOn && normalized.includes(behavior.failOn)) {
             throw new Error('boom');
@@ -35,6 +44,7 @@ beforeEach(() => {
   statements.length = 0;
   released.count = 0;
   behavior.failOn = undefined;
+  behavior.stamp = null;
 });
 
 describe('control-db', () => {
@@ -82,6 +92,16 @@ describe('control-db', () => {
       'INSERT INTO price_book_releases ...',
       'ROLLBACK',
     ]);
+    expect(released.count).toBe(1);
+  });
+
+  it('refuses a database stamped for another environment before any statement (P1.3)', async () => {
+    vi.resetModules();
+    behavior.stamp = 'production';
+    const fresh = await import('@/lib/control-db');
+    await expect(fresh.controlQuery('SELECT 1')).rejects.toThrow(/stamped production/);
+    // Nothing ran: no transaction was opened (the catch-all ROLLBACK is a no-op).
+    expect(statements.filter((statement) => statement !== 'ROLLBACK')).toEqual([]);
     expect(released.count).toBe(1);
   });
 });

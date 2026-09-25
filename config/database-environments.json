@@ -1,0 +1,18 @@
+{
+  "$comment": "Non-secret registry of which Neon endpoint belongs to which environment. Database tools refuse to connect to a Neon endpoint that is not registered here under the environment they were told to target (JBOX_ENVIRONMENT). Endpoint ids are the `ep-...` prefix of the connection hostname (without `-pooler`). Changes to this file are reviewed like code. See docs/DATABASE_SETUP.md#environment-identity.",
+  "neonProjectId": "restless-meadow-35560667",
+  "environments": {
+    "production": {
+      "neonBranchId": "br-quiet-band-avc4s183",
+      "endpointIds": []
+    },
+    "preview": {
+      "neonBranchId": "br-floral-poetry-avcpaajg",
+      "endpointIds": []
+    },
+    "development": {
+      "neonBranchId": "br-square-wind-av4qdhvq",
+      "endpointIds": []
+    }
+  }
+}

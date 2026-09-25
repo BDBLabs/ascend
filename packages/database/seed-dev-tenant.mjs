@@ -13,16 +13,10 @@
 import { readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import pg from 'pg';
 import { splitStatements } from './sql-split.mjs';
+import { connectForTool } from './tool-connection.mjs';
 
 const DEV_ORG_ID = 'de000000-0000-0000-0000-000000000001';
-
-const connectionString = process.env.DATABASE_URL_OWNER;
-if (!connectionString) {
-  process.stderr.write('DATABASE_URL_OWNER is not set. See docs/DATABASE_SETUP.md.\n');
-  process.exit(2);
-}
 
 const seedPath = join(dirname(fileURLToPath(import.meta.url)), 'seed-dev-tenant.sql');
 const source = await readFile(seedPath, 'utf8');
@@ -32,14 +26,8 @@ const lines = source
   .filter((line) => !line.trim().startsWith('\\set') && !line.trim().startsWith('\\echo'));
 const statements = splitStatements(lines.join('\n'));
 
-const client = new pg.Client({
-  connectionString,
-  ssl: /localhost|127\.0\.0\.1/.test(connectionString)
-    ? false
-    : { rejectUnauthorized: true },
-});
-
-await client.connect();
+// Seed data never goes to production (P1.3).
+const { client } = await connectForTool({ tool: 'seed-dev-tenant', stamp: 'require' });
 try {
   for (const [index, statement] of statements.entries()) {
     if (process.env.VERBOSE) process.stdout.write(`  [${index}] ${statement.slice(0, 60)}\n`);

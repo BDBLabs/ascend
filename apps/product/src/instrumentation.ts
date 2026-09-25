@@ -8,6 +8,11 @@
 export async function register() {
   if (process.env.NEXT_RUNTIME !== 'nodejs') return;
 
+  // P0.1: a production deployment with a demo-principal variable must not
+  // serve a single request.
+  const { assertNoDemoPrincipalInProduction } = await import('@/lib/field-api-auth');
+  assertNoDemoPrincipalInProduction();
+
   const { registerShutdownHandlers } = await import('@/lib/shutdown');
   registerShutdownHandlers();
 }

@@ -75,23 +75,52 @@ export async function resolveJwtFieldPrincipal(): Promise<FieldPrincipal | null>
  * this mode; the organization id comes from the deployment environment rather
  * than a request.
  *
- * PRODUCTION FAIL-CLOSED (P0.1): a production process NEVER serves the demo
- * owner principal on `FIELD_DEMO_MODE=1` alone. Production additionally
- * requires the explicit acknowledgement `FIELD_DEMO_ALLOW_IN_PRODUCTION=1`,
- * set only on sandbox deployments that hold no real tenant data. Without both
- * keys this returns null (callers 401) and logs once per process — an
- * accidentally-carried demo variable cannot anonymously expose a tenant's
- * Field workspace with owner rights.
+ * PRODUCTION FAIL-CLOSED (P0.1):
+ *   - A production DEPLOYMENT (VERCEL_ENV=production or
+ *     JBOX_ENVIRONMENT=production) never serves the demo principal. There is
+ *     no override; instrumentation.ts refuses to start such a process at all
+ *     (assertNoDemoPrincipalInProduction).
+ *   - Any other process built for production (a sandbox preview) serves it
+ *     only with the explicit acknowledgement FIELD_DEMO_ALLOW_IN_PRODUCTION=1.
+ * Otherwise this returns null (callers 401) and logs.
  */
+export function isProductionDeployment(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.VERCEL_ENV === 'production' || env.JBOX_ENVIRONMENT?.trim() === 'production';
+}
+
+/**
+ * Startup invariant, called from instrumentation.ts: a production deployment
+ * carrying either demo-principal variable refuses to start, so the exposure
+ * recorded in docs/assurance/CURRENT_STATE.md cannot recur by configuration.
+ */
+export function assertNoDemoPrincipalInProduction(env: NodeJS.ProcessEnv = process.env): void {
+  if (!isProductionDeployment(env)) return;
+  const carried = ['FIELD_DEMO_MODE', 'DEVELOPMENT_FIELD_ORGANIZATION_ID', 'FIELD_DEMO_ALLOW_IN_PRODUCTION']
+    .filter((name) => (env[name] ?? '').trim() !== '');
+  if (carried.length) {
+    throw new Error(
+      `Refusing to start: production deployment carries demo-principal variable(s) ${carried.join(', ')}. `
+        + 'Remove them from the production environment and redeploy.',
+    );
+  }
+}
+
 export async function resolveDevelopmentFieldPrincipal(): Promise<FieldPrincipal | null> {
   if (process.env.FIELD_DEMO_MODE !== '1') return null;
 
   const organizationId = process.env.DEVELOPMENT_FIELD_ORGANIZATION_ID?.trim() ?? '';
   if (!organizationId) return null;
 
+  if (isProductionDeployment()) {
+    console.error(
+      '[field-api-auth] FIELD_DEMO_MODE=1 on a production deployment — refusing the demo owner principal.',
+    );
+    return null;
+  }
+
   if (process.env.NODE_ENV === 'production' && process.env.FIELD_DEMO_ALLOW_IN_PRODUCTION !== '1') {
     console.warn(
-      '[field-api-auth] FIELD_DEMO_MODE=1 is set on a production process without ' +
+      '[field-api-auth] FIELD_DEMO_MODE=1 is set on a production build without ' +
         'FIELD_DEMO_ALLOW_IN_PRODUCTION=1 — refusing the demo owner principal.',
     );
     return null;

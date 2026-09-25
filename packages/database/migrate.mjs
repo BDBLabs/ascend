@@ -1,7 +1,13 @@
 /**
  * Migration runner.
  *
- *   node --env-file=.env.local packages/database/migrate.mjs [--status] [--dry-run]
+ *   JBOX_ENVIRONMENT=development node --env-file=.env.local packages/database/migrate.mjs [--status] [--dry-run]
+ *   JBOX_ENVIRONMENT=production  node --env-file=.env.neon.production.local packages/database/migrate.mjs --production
+ *
+ * Environment identity (P1.3): JBOX_ENVIRONMENT must name the target, the
+ * target must belong to it (see tool-connection.mjs), and production also needs
+ * the explicit --production flag. The first run against a database stamps it
+ * with the declared environment; every later run must agree with the stamp.
  *
  * Connects with DATABASE_URL_OWNER, never the runtime credential: applying DDL
  * is the one job the owner exists for, and the runtime login deliberately has
@@ -14,8 +20,8 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import pg from 'pg';
 import { planMigrations } from './src/migration-plan.mjs';
+import { connectForTool } from './tool-connection.mjs';
 
 const MIGRATIONS_DIR = join(dirname(fileURLToPath(import.meta.url)), 'migrations');
 
@@ -30,25 +36,12 @@ const dryRun = args.has('--dry-run');
 // migrations a schema already reflects is how a ledger starts lying.
 const adoptThrough = argv.find((arg) => arg.startsWith('--adopt='))?.slice('--adopt='.length);
 
-const connectionString = process.env.DATABASE_URL_OWNER;
-if (!connectionString) {
-  process.stderr.write(
-    'DATABASE_URL_OWNER is not set.\n'
-    + 'Migrations run as the table owner. If you are trying to use the runtime\n'
-    + 'credential, that is the wrong one -- see docs/DATABASE_SETUP.md.\n',
-  );
-  process.exit(2);
-}
-
-function describeTarget(url) {
-  // Host only. The credential must never reach a log.
-  try {
-    const parsed = new URL(url);
-    return `${parsed.hostname}${parsed.pathname}`;
-  } catch {
-    return '(unparseable connection string)';
-  }
-}
+const { client } = await connectForTool({
+  tool: 'migrate',
+  allowProduction: args.has('--production'),
+  // Read-only modes never write the stamp.
+  stamp: statusOnly || dryRun ? 'optional' : 'create',
+});
 
 // On a fresh database the application roles do not exist until 001 creates
 // them, so the grant is applied only to roles that exist and is re-run after
@@ -64,12 +57,6 @@ async function grantLedgerRead() {
   );
 }
 
-const client = new pg.Client({
-  connectionString,
-  ssl: /localhost|127\.0\.0\.1/.test(connectionString) ? false : { rejectUnauthorized: true },
-});
-
-await client.connect();
 
 try {
   await client.query(`
@@ -97,7 +84,6 @@ try {
 
   const pending = planMigrations({ files, applied });
 
-  process.stdout.write(`target:  ${describeTarget(connectionString)}\n`);
   process.stdout.write(`applied: ${applied.size}\npending: ${pending.length}\n`);
 
   if (adoptThrough) {

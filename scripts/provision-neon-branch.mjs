@@ -91,6 +91,34 @@ function withCredentials(connection, username, password) {
   return result.toString();
 }
 
+// Exactly the role memberships the applications assume -- no more, no fewer.
+const EXPECTED_MEMBERSHIPS = {
+  jbox_runtime: ['contractor_app', 'platform_runtime'],
+  jbox_control: ['contractor_app', 'control_app'],
+};
+
+async function verifyMemberships(connection) {
+  const result = await psql(connection, `
+SELECT json_object_agg(login, roles)::text
+FROM (
+  SELECT member.rolname AS login,
+         json_agg(role.rolname ORDER BY role.rolname) AS roles
+  FROM pg_auth_members AS m
+  JOIN pg_roles AS role ON role.oid = m.roleid
+  JOIN pg_roles AS member ON member.oid = m.member
+  WHERE member.rolname IN ('jbox_runtime', 'jbox_control')
+  GROUP BY member.rolname
+) AS memberships;
+`);
+  const line = result.stdout.split(/\r?\n/).map((value) => value.trim()).find((value) => value.startsWith('{'));
+  const actual = JSON.parse(line ?? '{}');
+  for (const [login, roles] of Object.entries(EXPECTED_MEMBERSHIPS)) {
+    if (JSON.stringify(actual[login] ?? []) !== JSON.stringify(roles)) {
+      throw new Error('role_verification_membership_failure');
+    }
+  }
+}
+
 const [projectId, branch, environmentName, rotateOwnerFlag] = process.argv.slice(2);
 if (
   !PROJECT_PATTERN.test(projectId ?? '') ||
@@ -121,6 +149,12 @@ try {
   const ownerPooled = await connectionString(projectId, branch, true);
 
   if (rotateOwnerFlag === 'recover-existing') {
+    // Branches provisioned before the contractor_app fix (development and
+    // preview; production was hand-corrected) are repaired here. GRANT of an
+    // existing membership is a no-op, so this is safe to repeat.
+    await psql(ownerDirect, 'GRANT contractor_app TO jbox_control;');
+    await verifyMemberships(ownerDirect);
+
     const runtimeDirect = await connectionString(
       projectId,
       branch,
@@ -184,7 +218,9 @@ GRANT USAGE ON SCHEMA public TO jbox_runtime;
 
 CREATE ROLE jbox_control LOGIN PASSWORD '${controlPassword}'
   NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
-GRANT control_app TO jbox_control;
+-- contractor_app is required: provisioning switches to it under an org
+-- context to write tenant content (apps/control/src/lib/control-db.ts).
+GRANT control_app, contractor_app TO jbox_control;
 GRANT USAGE ON SCHEMA public TO jbox_control;
 
 ${rotateOwnerFlag === 'rotate-owner'
@@ -232,6 +268,8 @@ FROM (
       throw new Error('role_verification_attribute_failure');
     }
   }
+
+  await verifyMemberships(ownerDirect);
 
   const credentials = {
     DATABASE_URL: withCredentials(

@@ -14,6 +14,8 @@ vi.mock('pg', () => {
       return {
         query: async (text: string) => {
           const normalized = String(text).replace(/\s+/g, ' ').trim();
+          // The one-time environment-stamp probe is not part of the transaction.
+          if (normalized.includes('_jbox_environment')) return { rows: [] };
           statements.push(normalized);
           if (behavior.failOn && normalized.includes(behavior.failOn)) {
             throw new Error('boom');
