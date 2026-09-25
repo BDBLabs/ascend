@@ -38,8 +38,8 @@ function validateConnectionString(name, value) {
   if (!url.hostname.endsWith('.neon.tech')) {
     fail(`${name} must use a Neon hostname.`);
   }
-  if (url.pathname !== '/jbox') {
-    fail(`${name} must select the jbox database.`);
+  if (url.pathname !== '/ascend') {
+    fail(`${name} must select the ascend database.`);
   }
   if (!url.password) {
     fail(`${name} must contain a generated password.`);
@@ -47,10 +47,10 @@ function validateConnectionString(name, value) {
 
   const isPooled = url.hostname.split('.', 1)[0].endsWith('-pooler');
   const expected = {
-    DATABASE_URL: { role: 'jbox_runtime', pooled: true },
-    DATABASE_URL_UNPOOLED: { role: 'jbox_runtime', pooled: false },
-    DATABASE_URL_OWNER: { role: 'jbox_owner', pooled: false },
-    CONTROL_DATABASE_URL: { role: 'jbox_control', pooled: true },
+    DATABASE_URL: { role: 'ascend_runtime', pooled: true },
+    DATABASE_URL_UNPOOLED: { role: 'ascend_runtime', pooled: false },
+    DATABASE_URL_OWNER: { role: 'ascend_owner', pooled: false },
+    CONTROL_DATABASE_URL: { role: 'ascend_control', pooled: true },
   }[name];
 
   if (decodeURIComponent(url.username) !== expected.role) {

@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 
 /**
- * The product landing page served on the apex domain (usejbox.com). Pure
+ * The product landing page served on the apex domain (useascend.com). Pure
  * marketing — no tenant data, no database. Sells the storefront-to-Field loop
  * with pricing, and moves the visitor to /onboarding.
  */
@@ -10,7 +10,7 @@ function Header() {
   return (
     <header className="site-header">
       <div className="container">
-        <a className="brand-name" href="/">J-Box</a>
+        <a className="brand-name" href="/">Ascend</a>
         <nav className="site-nav">
           <a href="/#how-it-works">How it works</a>
           <a href="/#features">Features</a>
@@ -106,7 +106,7 @@ function Footer() {
     <footer className="site-footer">
       <div className="container">
         <div>
-          <strong>J-Box</strong> — storefront and Field for small trade contractors.
+          <strong>Ascend</strong> — storefront and Field for small trade contractors.
         </div>
         <div style={{ marginTop: '6px' }}>
           <a href="/onboarding">Start free trial</a> ·{' '}
@@ -129,7 +129,7 @@ export default function MarketingLanding() {
           <div className="eyebrow">For small trade contractors</div>
           <h1>Your storefront and your back office, one system.</h1>
           <p>
-            J-Box gives you a professional customer website and a Field workspace for estimates,
+            Ascend gives you a professional customer website and a Field workspace for estimates,
             jobs, and invoices. Every lead your storefront collects lands straight in your work
             queue — no re-entry, no copy-paste.
           </p>
@@ -158,7 +158,7 @@ export default function MarketingLanding() {
               storefront exactly as customers will see it.
             </Step>
             <Step number="3" title="Go live and run your work in Field">
-              Your site goes up on yourbusiness.usejbox.com. Service requests become leads
+              Your site goes up on yourbusiness.useascend.com. Service requests become leads
               in your Field workspace, ready to turn into signed estimates.
             </Step>
           </div>
@@ -172,7 +172,7 @@ export default function MarketingLanding() {
           <h2>Everything a small trade business needs to run.</h2>
           <div className="card-grid">
             <Feature title="Your own storefront">
-              A branded site on yourbusiness.usejbox.com — six template designs, your
+              A branded site on yourbusiness.useascend.com — six template designs, your
               brand colors, service area, and a request form with photos.
             </Feature>
             <Feature title="Leads straight to Field">
@@ -215,7 +215,7 @@ export default function MarketingLanding() {
               unit="/ month"
               description="Everything you need to replace paper estimating and go live on the web."
               features={[
-                'Branded storefront on yourbiz.usejbox.com',
+                'Branded storefront on yourbiz.useascend.com',
                 'Unlimited estimates & customer links',
                 'Jobs and invoices',
                 'Price book (up to 500 items)',
@@ -247,7 +247,7 @@ export default function MarketingLanding() {
           <p style={{ textAlign: 'center', marginTop: 28, color: 'var(--muted)', fontSize: '0.88rem' }}>
             All plans include the full storefront + Field workspace.
             Prices shown in USD. NY-based contractor? Standard 8.625% sales tax applies.{' '}
-            <a href="mailto:support@usejbox.com">Contact us</a> for annual billing.
+            <a href="mailto:support@useascend.com">Contact us</a> for annual billing.
           </p>
         </div>
       </section>

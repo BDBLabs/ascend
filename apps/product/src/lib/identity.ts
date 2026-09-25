@@ -3,7 +3,7 @@ import 'server-only';
 import type { ApplicationRole } from '@contractor-platform/domain';
 
 /**
- * Native Field identity helpers. The J-Box application role is stored directly
+ * Native Field identity helpers. The Ascend application role is stored directly
  * on the organization membership ('owner' | 'office' | 'technician'); there is
  * no third-party role to map. This module keeps the role vocabulary in one
  * place so the schema CHECK, the token claims, and the capability model cannot

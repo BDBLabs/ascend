@@ -166,7 +166,7 @@ describe('buildProvisionContract', () => {
 
     expect(contract.slug).toBe('paris-electric');
     expect(contract.displayName).toBe('Paris Electric');
-    expect(contract.canonicalHostname).toBe('paris-electric.usejbox.com');
+    expect(contract.canonicalHostname).toBe('paris-electric.useascend.com');
     expect(contract.templateId).toBe('heritage-craft');
 
     expect(contract.config.version).toBeUndefined();

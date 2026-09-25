@@ -46,7 +46,7 @@ async function handlePortalRedirect() {
 
   const { url } = await createBillingPortalSession({
     stripeCustomerId,
-    returnUrl: 'https://field.usejbox.com/field',
+    returnUrl: 'https://field.useascend.com/field',
   });
 
   redirect(url);

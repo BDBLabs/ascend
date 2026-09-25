@@ -12,13 +12,13 @@ import type { OutboxMessage } from '@/lib/transactional-outbox';
 const VALID_PAYLOAD: EstimateDeliveryPayload = {
   displayId: 'EST-0001',
   customerEmail: 'customer@example.com',
-  from: 'Paris Electric <hello@paris.usejbox.com>',
+  from: 'Paris Electric <hello@paris.useascend.com>',
   companyName: 'Paris Electric',
   timeZone: 'America/New_York',
   expiresAt: '2026-09-01T00:00:00.000Z',
-  viewUrl: 'https://paris.usejbox.com/documents/estimates/aaa',
-  approveUrl: 'https://paris.usejbox.com/documents/estimates/bbb',
-  declineUrl: 'https://paris.usejbox.com/documents/estimates/ccc',
+  viewUrl: 'https://paris.useascend.com/documents/estimates/aaa',
+  approveUrl: 'https://paris.useascend.com/documents/estimates/bbb',
+  declineUrl: 'https://paris.useascend.com/documents/estimates/ccc',
 };
 
 function message(payload: unknown, key = 'idem-1'): OutboxMessage {
@@ -50,14 +50,14 @@ describe('buildEstimateDeliveryEmail', () => {
       displayId: 'EST-0001',
       expiresAt: '2026-09-01T00:00:00.000Z',
       timeZone: 'America/New_York',
-      viewUrl: 'https://paris.usejbox.com/view',
-      approveUrl: 'https://paris.usejbox.com/approve',
-      declineUrl: 'https://paris.usejbox.com/decline',
+      viewUrl: 'https://paris.useascend.com/view',
+      approveUrl: 'https://paris.useascend.com/approve',
+      declineUrl: 'https://paris.useascend.com/decline',
     });
     expect(email.subject).toBe('EST-0001 from Paris Electric');
-    expect(email.text).toContain('https://paris.usejbox.com/view');
-    expect(email.text).toContain('https://paris.usejbox.com/approve');
-    expect(email.text).toContain('https://paris.usejbox.com/decline');
+    expect(email.text).toContain('https://paris.useascend.com/view');
+    expect(email.text).toContain('https://paris.useascend.com/approve');
+    expect(email.text).toContain('https://paris.useascend.com/decline');
     expect(email.html).toContain('Review estimate');
     expect(email.html).toContain('Approve this estimate');
     expect(email.html).toContain('Decline this estimate');
@@ -69,9 +69,9 @@ describe('buildEstimateDeliveryEmail', () => {
       displayId: 'EST & 1',
       expiresAt: new Date('2026-09-01T00:00:00.000Z'),
       timeZone: 'UTC',
-      viewUrl: 'https://paris.usejbox.com/v',
-      approveUrl: 'https://paris.usejbox.com/a',
-      declineUrl: 'https://paris.usejbox.com/d',
+      viewUrl: 'https://paris.useascend.com/v',
+      approveUrl: 'https://paris.useascend.com/a',
+      declineUrl: 'https://paris.useascend.com/d',
     });
     expect(email.html).not.toContain('<script>');
     expect(email.html).toContain('&lt;script&gt;');
@@ -117,11 +117,11 @@ describe('dispatchOutboxMessage', () => {
     await dispatchOutboxMessage(message(VALID_PAYLOAD, 'idem-42'), fetchImplementation);
 
     expect(sentBody).toMatchObject({
-      from: 'Paris Electric <hello@paris.usejbox.com>',
+      from: 'Paris Electric <hello@paris.useascend.com>',
       to: ['customer@example.com'],
       subject: 'EST-0001 from Paris Electric',
     });
-    expect(sentBody?.text).toContain('https://paris.usejbox.com/documents/estimates/aaa');
+    expect(sentBody?.text).toContain('https://paris.useascend.com/documents/estimates/aaa');
     expect(idempotencyKey).toBe('idem-42');
   });
 

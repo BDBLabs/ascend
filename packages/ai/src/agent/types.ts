@@ -5,7 +5,7 @@ export type AiActorContext = {
   organizationId: string;
   /** Persistent UUID of the AI actor in the application's identity authority. */
   actorId: string;
-  /** Stable namespaced identity, e.g. ai:assistant:jbox. */
+  /** Stable namespaced identity, e.g. ai:assistant:ascend. */
   actorKey: string;
   role: AiActorRole;
   source: 'human' | 'ai';

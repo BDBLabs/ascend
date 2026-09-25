@@ -22,8 +22,8 @@ import { loadInForceConfig } from '@/lib/tenant';
 import { enqueueOutboxMessage } from '@/lib/transactional-outbox';
 
 /**
- * Estimate customer delivery, jbox's equivalent of the prototype's
- * createEstimateDelivery. jbox has no version tables, price book, PDF
+ * Estimate customer delivery, ascend's equivalent of the prototype's
+ * createEstimateDelivery. ascend has no version tables, price book, PDF
  * artifacts, or private storage: the estimate itself is the document, and
  * "delivery" means issuing the customer access links and queuing the
  * self-contained estimate_delivery email for the transactional-outbox drain.

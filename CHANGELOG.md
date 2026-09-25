@@ -1,6 +1,6 @@
 # Changelog — Ascend (BDBLabs/ascend)
 
-Monorepo (`jbox` workspaces): `apps/product`, `apps/control`,
+Monorepo (`ascend` workspaces): `apps/product`, `apps/control`,
 `packages/*`. Format follows Keep a Changelog. Tags: `v0.1.0`.
 
 ## [0.1.0] - 2026-09-25
@@ -28,9 +28,9 @@ see "GA gates" below and `docs/assurance/REMEDIATION_PLAN.md`.
   builds for both apps, GitHub Release with generated notes.
 
 ### Deployment targets (already present, now documented)
-- `fly.product.toml` (`jbox-product`, iad, `/api/health`) +
+- `fly.product.toml` (`ascend-product`, iad, `/api/health`) +
   `apps/product/Dockerfile` (standalone Next, non-root).
-- `fly.control.toml` (`jbox-control`, iad, `/api/health`) +
+- `fly.control.toml` (`ascend-control`, iad, `/api/health`) +
   `apps/control/Dockerfile`.
 - `apps/product/vercel.json` (transactional-outbox cron).
 

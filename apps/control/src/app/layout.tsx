@@ -6,7 +6,7 @@ import type { ReactNode } from 'react';
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
-  title: 'J-Box Control',
+  title: 'Ascend Control',
   description: 'Operator plane: organization lifecycle and provisioning.',
 };
 

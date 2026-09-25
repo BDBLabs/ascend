@@ -1,10 +1,10 @@
-# J-Box
+# Ascend
 
 _A BagelTech project._
 
-A multitenant operating platform for small trade contractors — initially electrical.
+A multitenant operating platform for elevator modernization contractors.
 
-Two connected surfaces replace paper estimating and an absent or outdated web presence:
+Three connected surfaces replace paper estimating and an absent or outdated web presence:
 
 - **Storefront** — a professional public website, selected from a template catalog and themed
   from the tenant's own brand configuration. Captures qualified service requests with
@@ -12,13 +12,16 @@ Two connected surfaces replace paper estimating and an absent or outdated web pr
 - **Field** — a tablet-friendly workspace where the contractor prices work from a private price
   book, produces branded estimates, captures signatures, converts approved estimates into jobs,
   and issues invoices and receipts.
+- **Ascend workspace** — modernization delivery: buildings, elevators, projects, work packages,
+  costs, progress with earned value, progress billing against frozen snapshots, obligations,
+  and change control.
 
 Requests raised on the Storefront land directly in Field. One system, no re-keying.
 
-The market — independent contractors with fewer than ten field staff — is underserved by both
+The market — independent modernization contractors — is underserved by both
 cheap website builders (which produce a site and nothing else) and full field-service management
-suites (priced and scoped for fleets). J-Box sits between: a real website plus exactly the back
-office a two-truck operation needs.
+suites (priced and scoped for fleets). Ascend sits between: a real website plus exactly the back
+office a lean operation needs, with modernization-specific project control on top.
 
 **The governing design constraint:** preserve the contractor's authority, judgment, pricing
 control, and customer relationships. The platform removes administrative repetition. It does not
@@ -27,9 +30,9 @@ take over the business.
 ## Status
 
 Staging-complete (`v0.1.0`, 2026-09-25) — production-distribution snapshot,
-**not GA**. This repository is a selective fresh start from a working
-single-tenant prototype (`paris-electric-prototype`), which continues to
-serve the reference tenant while this one is built. See [Porting
+**not GA**. Ascend is a standalone product; its lineage includes a selective
+fresh start from a working single-tenant prototype, which continues to
+serve its reference tenant independently. See [Porting
 Ledger](docs/PORTING_LEDGER.md) for what carries across and what
 deliberately does not.
 
@@ -38,9 +41,6 @@ Production targets, environment contract, and promotion checklist:
 Go-live is gated on the CHANGELOG's GA gates plus legal review (NY GBL Art.
 36-A escrow, §396-t cooling-off, Suffolk HIC license number, ST-124). AI
 review is not legal sign-off.
-
-Paris Electric Inc. (Suffolk County, New York) is tenant #1 and the design reference — not the
-customer.
 
 ## Documentation
 

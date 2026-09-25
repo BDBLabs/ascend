@@ -14,7 +14,7 @@ export function authorizeRisk(
     return { allowed: false, reason: 'Incomplete actor authorization context' };
   }
 
-  // Reads are available to every authenticated JBox role.
+  // Reads are available to every authenticated Ascend role.
   if (risk === 'read') return { allowed: true };
 
   // Mutating and financially consequential actions require at least manager

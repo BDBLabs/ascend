@@ -9,9 +9,9 @@ import { readFieldSessionToken, resolveStaffFromToken } from '@/lib/auth';
 import { runWithOrganizationContext } from '@/lib/organization-context-store';
 
 /**
- * Field API authorization for jbox.
+ * Field API authorization for ascend.
  *
- * jbox differs from the prototype in one structural way: there is no mutable
+ * ascend differs from the prototype in one structural way: there is no mutable
  * "current organization". Tenant context is established per subtree by
  * runWithOrganizationContext() (see lib/organization-context-store.ts), and the
  * database refuses unscoped writes. So resolving a principal and running the

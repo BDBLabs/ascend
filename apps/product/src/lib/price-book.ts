@@ -12,7 +12,7 @@ export type ActivePriceBookRow = {
 
 /**
  * The price book a commercial document may draw from: the latest PUBLISHED
- * release. jbox has no top-level `price_books` row -- book code and currency
+ * release. ascend has no top-level `price_books` row -- book code and currency
  * are constants here (the money module is USD), and the release is the unit of
  * identity the estimator keys its catalog on.
  *

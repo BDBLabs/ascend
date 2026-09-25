@@ -19,7 +19,7 @@ export async function generateMetadata(): Promise<Metadata> {
     const { config } = await loadStorefront();
     return { title: config.identity.businessName };
   } catch {
-    return { title: 'J-Box' };
+    return { title: 'Ascend' };
   }
 }
 
@@ -85,7 +85,7 @@ export default async function StorefrontLayout({ children }: { children: ReactNo
           {config.contact.hours && <div>{config.contact.hours}</div>}
           {config.serviceArea.description && <div>Serving: {config.serviceArea.description}</div>}
           <div style={{ marginTop: '10px', fontSize: '0.8rem', color: 'var(--muted)' }}>
-            Powered by J-Box · <a href="https://field.usejbox.com">Staff sign-in</a>
+            Powered by Ascend · <a href="https://field.useascend.com">Staff sign-in</a>
           </div>
         </div>
       </footer>

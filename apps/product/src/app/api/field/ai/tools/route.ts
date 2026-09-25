@@ -5,7 +5,7 @@ import {
 } from '@/lib/field-api-auth';
 import { isDatabaseConfigured } from '@/lib/db';
 import { privateJson } from '@/lib/http';
-import { listJBoxAiTools } from '@/lib/ai-agent';
+import { listAscendAiTools } from '@/lib/ai-agent';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,7 +21,7 @@ export async function GET() {
 
   try {
     return await withFieldContext(principal, async () => {
-      const tools = listJBoxAiTools();
+      const tools = listAscendAiTools();
       return privateJson({ tools });
     });
   } catch (error) {

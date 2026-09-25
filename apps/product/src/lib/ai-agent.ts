@@ -4,15 +4,15 @@ import type { AiToolCall } from '@contractor-platform/ai/agent';
 import { requireAiActorContext, runAsAiActor, type AiActorIdentity } from './ai-actor-context';
 import { aiActorResolver } from './ai-actors';
 import { recordAiToolAuditEvent } from './ai-audit';
-import { createJBoxAiToolRegistry } from './ai-tools';
+import { createAscendAiToolRegistry } from './ai-tools';
 
-const registry = createJBoxAiToolRegistry();
+const registry = createAscendAiToolRegistry();
 
 /**
- * Executes one JBox AI tool as a persistent, tenant-scoped application actor.
+ * Executes one Ascend AI tool as a persistent, tenant-scoped application actor.
  * The caller must already be inside an authenticated organization context.
  */
-export async function invokeJBoxAiTool(
+export async function invokeAscendAiTool(
   identity: AiActorIdentity,
   call: AiToolCall,
   options: { confirm?: boolean } = {},
@@ -26,6 +26,6 @@ export async function invokeJBoxAiTool(
   });
 }
 
-export function listJBoxAiTools() {
+export function listAscendAiTools() {
   return registry.list();
 }

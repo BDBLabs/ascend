@@ -8,7 +8,7 @@ describe('storage', () => {
   let dir: string;
 
   beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'jbox-storage-'));
+    dir = await mkdtemp(join(tmpdir(), 'ascend-storage-'));
     process.env.STORAGE_DIR = dir;
   });
 

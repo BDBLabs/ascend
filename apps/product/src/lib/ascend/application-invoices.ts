@@ -13,7 +13,7 @@ import {
 
 /**
  * Commercial loop: turns an approved progress application into a draft
- * J-Box invoice. The invoice engine is reused unchanged — one positive,
+ * Ascend invoice. The invoice engine is reused unchanged — one positive,
  * non-taxable line for the amount due, totals via the money package, the
  * existing document-number allocation — so the invoice total agrees with
  * the frozen billing snapshot by construction. The application link and

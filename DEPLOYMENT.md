@@ -8,8 +8,8 @@ Staging-complete; **not GA** — `CHANGELOG.md` lists the GA gates.
 
 | Surface | Primary target | Config |
 |---|---|---|
-| Product (Storefront + Field) | Fly `jbox-product` (iad) | `fly.product.toml`, `apps/product/Dockerfile` |
-| Control (operator plane) | Fly `jbox-control` (iad) | `fly.control.toml`, `apps/control/Dockerfile` |
+| Product (Storefront + Field) | Fly `ascend-product` (iad) | `fly.product.toml`, `apps/product/Dockerfile` |
+| Control (operator plane) | Fly `ascend-control` (iad) | `fly.control.toml`, `apps/control/Dockerfile` |
 | Cron | Vercel `/api/cron/transactional-outbox` daily 08:00 | `apps/product/vercel.json` |
 
 Dockerfiles build from the **repository root** (workspace lockfile +

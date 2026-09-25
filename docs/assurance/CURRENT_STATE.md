@@ -2,7 +2,12 @@
 
 Assurance snapshot: 2026-08-14
 
-Repository: `Excelsior2026/jbox`
+> Product-split note (2026-09-25): deployment identifiers below were updated
+> for the Ascend product split; the snapshot itself is a dated record and its
+> originals are preserved in git history. It is not a
+> production-readiness approval.
+
+Repository: `Excelsior2026/ascend`
 
 Branch/commit: `main` at `ca9472238c73d5d92a8ab4cc87e84ff31e8ca0af`, exact `origin/main` at review start
 
@@ -12,8 +17,8 @@ This file records observed state. It is not a production-readiness approval. See
 
 | Surface | Observed target | State |
 |---|---|---|
-| Product | Vercel project `jbox-product`, domains including `usejbox.com` and `field.usejbox.com` | Production deployment `dpl_7hkcBDmeAD9soi7R4GcP1UiWhUjV`, `READY`, exact reviewed commit |
-| Control | Vercel project `jbox-control`, `jbox-control.vercel.app` | Production deployment `dpl_DTc3dAJhDciYLVzy5A3eikvxN8E6`, `READY`, exact reviewed commit |
+| Product | Vercel project `ascend-product`, domains including `useascend.com` and `field.useascend.com` | Production deployment `dpl_7hkcBDmeAD9soi7R4GcP1UiWhUjV`, `READY`, exact reviewed commit |
+| Control | Vercel project `ascend-control`, `ascend-control.vercel.app` | Production deployment `dpl_DTc3dAJhDciYLVzy5A3eikvxN8E6`, `READY`, exact reviewed commit |
 | Duplicate control link | Vercel project `control` from `apps/control/.vercel/project.json` | Latest production deployment failed; not the live control domain |
 | Fly manifests | `fly.product.toml`, `fly.control.toml`, Dockerfiles | Stale relative to the verified Vercel deployment; storage comments still assume Fly |
 
@@ -25,10 +30,10 @@ Non-mutating requests made without cookies on 2026-08-14:
 
 | Host/path | Result |
 |---|---|
-| `usejbox.com/api/auth/me` | 401 `unauthenticated` |
-| `usejbox.com/api/field/estimates` | 200, four records |
-| `field.usejbox.com/api/auth/me` | 401 `unauthenticated` |
-| `field.usejbox.com/api/field/estimates` | 200, four records |
+| `useascend.com/api/auth/me` | 401 `unauthenticated` |
+| `useascend.com/api/field/estimates` | 200, four records |
+| `field.useascend.com/api/auth/me` | 401 `unauthenticated` |
+| `field.useascend.com/api/field/estimates` | 200, four records |
 | Both hosts `/api/health` | 200 |
 
 The mismatch is caused by `FIELD_DEMO_MODE` plus the configured development organization ID in Production. `field-api-auth.ts:79-101` turns a missing/invalid JWT into an owner principal. Treat the configured tenant data as anonymously exposed until containment and audit are complete.
@@ -43,15 +48,15 @@ The actual gitignored `apps/control/.env.local` points local control development
 
 ## Database branches, roles, and migrations
 
-| Branch | Applied migrations | `jbox_control` membership |
+| Branch | Applied migrations | `ascend_control` membership |
 |---|---|---|
 | Development | 001-008 | `control_app` only |
 | Preview | 001-002 | `control_app` only |
 | Production | 001-008 | `control_app`, `contractor_app` |
 
-Production `jbox_runtime` is a non-owner login, has `rolbypassrls=false` and `rolinherit=false`, and may assume `contractor_app` and `platform_runtime`. These are good properties.
+Production `ascend_runtime` is a non-owner login, has `rolbypassrls=false` and `rolinherit=false`, and may assume `contractor_app` and `platform_runtime`. These are good properties.
 
-`scripts/provision-neon-branch.mjs:180-188` creates `jbox_control` without the `contractor_app` membership required by `control-db.ts:85-91`; production was hand-corrected, development/preview were not.
+`scripts/provision-neon-branch.mjs:180-188` creates `ascend_control` without the `contractor_app` membership required by `control-db.ts:85-91`; production was hand-corrected, development/preview were not.
 
 The privileged-function boundary is not narrow in either development or production. PostgreSQL's default `PUBLIC EXECUTE` was never revoked. Read-only privilege checks confirmed `contractor_app` can execute hostname resolution, all native-auth lookup/provision functions, and both outbox claim/finish functions.
 

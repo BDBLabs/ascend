@@ -1,6 +1,6 @@
-# JBox AI Actor Authority Layer
+# Ascend AI Actor Authority Layer
 
-This package defines the authorization boundary between intelligent actors and JBox application capabilities.
+This package defines the authorization boundary between intelligent actors and Ascend application capabilities.
 
 ## Core rule
 
@@ -21,7 +21,7 @@ confirmation gate
       ↓
 execute()
       ↓
-JBox domain service
+Ascend domain service
       ↓
 scoped database access / RLS
 ```
@@ -51,7 +51,7 @@ scoped database access / RLS
 
 `policy.ts` provides the baseline risk policy:
 
-- reads: authenticated JBox roles;
+- reads: authenticated Ascend roles;
 - writes and financial actions: manager or owner;
 - destructive actions: owner.
 
@@ -59,7 +59,7 @@ Individual tools can impose stricter rules.
 
 ## Important boundary
 
-This layer should remain independent of JBox's database implementation. Product-specific tools belong in the application layer and should call existing JBox domain services. The AI layer must never construct arbitrary SQL or bypass existing business rules.
+This layer should remain independent of Ascend's database implementation. Product-specific tools belong in the application layer and should call existing Ascend domain services. The AI layer must never construct arbitrary SQL or bypass existing business rules.
 
 ## Actor identity
 

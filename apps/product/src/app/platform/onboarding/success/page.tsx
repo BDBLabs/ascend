@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Welcome to J-Box — Setup complete',
+  title: 'Welcome to Ascend — Setup complete',
   robots: { index: false, follow: false },
 };
 
@@ -37,7 +37,7 @@ export default function OnboardingSuccess() {
             <li>
               <strong style={{ color: 'var(--text)' }}>Sign in to Field</strong> —{' '}
               your staff workspace at{' '}
-              <a href="https://field.usejbox.com">field.usejbox.com</a>.
+              <a href="https://field.useascend.com">field.useascend.com</a>.
             </li>
             <li>
               <strong style={{ color: 'var(--text)' }}>Wait for DNS</strong> —{' '}
@@ -54,7 +54,7 @@ export default function OnboardingSuccess() {
         <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
           <a
             className="button"
-            href="https://field.usejbox.com"
+            href="https://field.useascend.com"
             style={{ textDecoration: 'none' }}
           >
             Go to Field workspace →
@@ -64,7 +64,7 @@ export default function OnboardingSuccess() {
             href="/"
             style={{ textDecoration: 'none' }}
           >
-            Back to J-Box
+            Back to Ascend
           </a>
         </div>
       </div>

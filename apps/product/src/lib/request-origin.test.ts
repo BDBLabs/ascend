@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { publicRequestIsSameOrigin } from '@/lib/request-origin';
 
-function request(origin: string | null, referer: string | null, url = 'https://field.usejbox.com/api/field/customers'): Request {
+function request(origin: string | null, referer: string | null, url = 'https://field.useascend.com/api/field/customers'): Request {
   const headers: Record<string, string> = {};
   if (origin) headers['origin'] = origin;
   if (referer) headers['referer'] = referer;
@@ -10,18 +10,18 @@ function request(origin: string | null, referer: string | null, url = 'https://f
 
 describe('publicRequestIsSameOrigin', () => {
   it('accepts a matching Origin', () => {
-    expect(publicRequestIsSameOrigin(request('https://field.usejbox.com', null))).toBe(true);
+    expect(publicRequestIsSameOrigin(request('https://field.useascend.com', null))).toBe(true);
   });
 
   it('rejects a cross-site Origin even with a matching Referer', () => {
     expect(publicRequestIsSameOrigin(
-      request('https://evil.example', 'https://field.usejbox.com/page'),
+      request('https://evil.example', 'https://field.useascend.com/page'),
     )).toBe(false);
   });
 
   it('falls back to Referer when Origin is absent', () => {
     expect(publicRequestIsSameOrigin(
-      request(null, 'https://field.usejbox.com/estimates/abc'),
+      request(null, 'https://field.useascend.com/estimates/abc'),
     )).toBe(true);
   });
 
@@ -40,7 +40,7 @@ describe('publicRequestIsSameOrigin', () => {
 
   it('rejects a lookalike origin', () => {
     expect(publicRequestIsSameOrigin(
-      request('https://field.usejbox.com.evil.example', null),
+      request('https://field.useascend.com.evil.example', null),
     )).toBe(false);
   });
 });

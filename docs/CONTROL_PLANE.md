@@ -1,7 +1,7 @@
 # Control Plane
 
 The control plane is the operator API for onboarding tenants. It lives in
-`apps/control` (deployed as `jbox-control`) and owns exactly one business
+`apps/control` (deployed as `ascend-control`) and owns exactly one business
 concern: turning an onboarding contract into a tenant that passes every gate
 the product app enforces, so `activate` is a formality and never a discovery.
 
@@ -9,9 +9,9 @@ the product app enforces, so `activate` is a formality and never a discovery.
 
 Production logins (see `DATABASE_SETUP.md`):
 
-- `jbox_runtime` — the product app's login. Member of `contractor_app` and
+- `ascend_runtime` — the product app's login. Member of `contractor_app` and
   `platform_runtime`.
-- `jbox_control` — the control plane's login. Member of `control_app` **and**
+- `ascend_control` — the control plane's login. Member of `control_app` **and**
   `contractor_app`. No `BYPASSRLS` anywhere.
 
 Every tenant table is `FORCE ROW LEVEL SECURITY`. The control plane never
@@ -46,7 +46,7 @@ organization is `active` — the exact state the control plane produces.
 {
   "slug": "paris-electric",            // organizations.slug — URL-safe, globally unique
   "displayName": "Paris Electric",
-  "canonicalHostname": "paris.usejbox.com",
+  "canonicalHostname": "paris.useascend.com",
   "clerkOrganizationId": "org_…",      // optional; linked when Clerk org-sync is wired
   "config": {                          // config-v1, see buildConfigDocument
     "identity":  { "businessName": "…", "tagline": "…" },
@@ -84,8 +84,12 @@ published release. There is deliberately no force flag.
 
 ## Deploy and DNS
 
-- Both apps deploy on Vercel, project `jbox-control` (root `apps/control`) and
-  `jbox-product` (root `apps/product`).
+> Ascend deploys to Fly (`ascend-product`, `ascend-control`); Vercel hosts
+> only the outbox cron — see `DEPLOYMENT.md` (authoritative). The Vercel
+> project layout below is the predecessor deployment record.
+
+- Both apps deploy on Vercel, project `ascend-control` (root `apps/control`) and
+  `ascend-product` (root `apps/product`).
 - Builds use `output: process.env.VERCEL ? undefined : 'standalone'` — the
   standalone output is for self-hosting only and breaks the Vercel build.
 - Control plane production env vars: `CONTROL_DATABASE_URL`,
@@ -94,15 +98,15 @@ published release. There is deliberately no force flag.
 - `CONTROL_API_TOKEN` is 24 bytes of random hex. It is also stored locally in
   the gitignored `apps/control/.env.local`; keep the local copy and the Vercel
   value in sync or rotate both.
-- Onboarding a new tenant: provision → add `tenant.usejbox.com` as a domain on
-  the `jbox-product` Vercel project and point DNS at the returned target →
+- Onboarding a new tenant: provision → add `tenant.useascend.com` as a domain on
+  the `ascend-product` Vercel project and point DNS at the returned target →
   confirm resolution → `verify-domain` → `activate`.
 
 ## Production record: Paris Electric
 
 - Organization `db010ee7-cff4-44ca-8444-bcc969e607ba`, slug `paris-electric`.
-- Hostname `paris.usejbox.com`, verified, organization `active`.
+- Hostname `paris.useascend.com`, verified, organization `active`.
 - Configuration `config-v1` version 1 approved; prefix `PE`.
 - Price book `Paris Electric v1` published: 5 categories, 17 items, 8.625% tax.
-- Live storefront at `https://paris.usejbox.com` (home, `/services`,
+- Live storefront at `https://paris.useascend.com` (home, `/services`,
   `/request`); browser title is the tenant business name.

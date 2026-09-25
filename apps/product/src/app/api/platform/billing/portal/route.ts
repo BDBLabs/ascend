@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
 
   const returnUrl = typeof body.returnUrl === 'string'
     ? body.returnUrl
-    : 'https://field.usejbox.com/field';
+    : 'https://field.useascend.com/field';
 
   try {
     const stripeCustomerId = await withFieldContext(principal, async () => {

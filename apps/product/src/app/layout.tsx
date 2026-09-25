@@ -7,7 +7,7 @@ import './globals.css';
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
-  title: 'J-Box',
+  title: 'Ascend',
   description: 'Storefront and Field for small trade contractors.',
   viewport: 'width=device-width, initial-scale=1',
 };

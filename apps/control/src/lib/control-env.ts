@@ -3,9 +3,8 @@ import 'server-only';
 /**
  * Environment contract for the control plane.
  *
- * The control database credential is a separate restricted login
- * (jbox_control) that can assume control_app — and, for provisioning, switch to
- * contractor_app under an org context so tenant content is written through the
+ * The control database credential is a separate restricted login that can
+ * assume control_app — and, for provisioning, switch to contractor_app under an org context so tenant content is written through the
  * same RLS-enforced path the tenant itself uses. It is never the table owner
  * and never holds BYPASSRLS.
  */

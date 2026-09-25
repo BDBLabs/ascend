@@ -158,7 +158,7 @@ const initialAreas: EstimateArea[] = [
 
 const initialItems: EstimateItem[] = [];
 
-const DRAFT_STORAGE_KEY = 'jbox-field-estimate';
+const DRAFT_STORAGE_KEY = 'ascend-field-estimate';
 const CUSTOMER_PRESENTATION_NOTICE = 'Customer review, signature, and print require a published private price book.';
 
 const markerLabels: Record<PlanMarkerType, { short: string; label: string }> = {

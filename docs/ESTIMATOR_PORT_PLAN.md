@@ -1,7 +1,7 @@
 # Estimator Port Plan
 
 Port the catalog-driven estimator, customer estimate presentation, and supporting
-schema from `paris-electric-prototype` into this repository (jbox), per the
+schema from `paris-electric-prototype` into this repository (ascend), per the
 decision to do a **full-fidelity port** (vs. a pragmatic adaptation) of the
 estimator-first scope.
 
@@ -35,7 +35,7 @@ with warnings). Consequence:
 ### Serving decision (adapted from the prototype)
 
 The prototype estimator serves the current release (draft or published) with a
-pricing-warning banner for drafts. jbox is stricter:
+pricing-warning banner for drafts. ascend is stricter:
 
 - `GET /api/field/price-book` serves **only the latest published release**; if no
   published release exists it returns `503 { error: 'Price book is not
@@ -47,7 +47,7 @@ pricing-warning banner for drafts. jbox is stricter:
 
 ### Data model delta (job association)
 
-No `estimates.job_id` column. Association is modeled the jbox way:
+No `estimates.job_id` column. Association is modeled the ascend way:
 `jobs.estimate_id → estimates` (migration 004 already has it); `HEADER_SELECT`
 derives `job_id` via subquery.
 
@@ -55,7 +55,7 @@ derives `job_id` via subquery.
 
 Ported scope: **job + invoice association, both DONE.** The invoice-conversion
 half of the prototype (`estimate-invoice-association.tsx`, `invoices.ts` lib,
-`/api/field/invoices` GET/POST) is a jbox-native subsystem of its own
+`/api/field/invoices` GET/POST) is a ascend-native subsystem of its own
 (see the "Internal invoice from a signed estimate" section below).
 
 `packages/database/migrations/011_job_estimate_association.sql` (new file):
@@ -65,10 +65,10 @@ half of the prototype (`estimate-invoice-association.tsx`, `invoices.ts` lib,
   WHERE estimate_id IS NOT NULL` — at most one job per estimate, so the derived
   `jobId` is never ambiguous and the "immutable association" claim is a DB rule.
 
-New server files (all jbox-native, mirroring `estimates.ts`/`customers/route.ts`):
+New server files (all ascend-native, mirroring `estimates.ts`/`customers/route.ts`):
 - `apps/product/src/lib/job-contract.ts` — `JOB_LIMITS` (title 2–200, notes ≤4000
   matching migration-004 CHECKs), `validateJobInput`. **No `serviceAddress`/`town`
-  — jbox jobs have no such columns** (the prototype did); the working address
+  — ascend jobs have no such columns** (the prototype did); the working address
   lives on the customer record.
 - `apps/product/src/lib/job-record.ts` — `JobRecord` exposes `displayId`,
   `estimateId`, `serviceRequestId` (uuid, not display id).
@@ -81,7 +81,7 @@ New server files (all jbox-native, mirroring `estimates.ts`/`customers/route.ts`
   a raced no-op or `23505` unique violation is re-read and reclassified so
   same-link retries are idempotent. Both histories are logged (`job_events`
   `created`/`estimate_linked`, `estimate_events` `job_linked`) with
-  `request_ip`/`user_agent` in `meta` per jbox's audit convention.
+  `request_ip`/`user_agent` in `meta` per ascend's audit convention.
 - `apps/product/src/app/api/field/jobs/route.ts` — `GET` (jobs.read) by
   `customerId`.
 - `apps/product/src/app/api/field/estimates/[id]/job/route.ts` — `POST`
@@ -93,7 +93,7 @@ New server files (all jbox-native, mirroring `estimates.ts`/`customers/route.ts`
   `prepareJobAssociation` (persists the draft first so `expectedUpdatedAt` is
   current, then returns it), `applyJobAssociation` (applies the returned record,
   sets `jobId`, messages with `job.displayId`).
-- CSS appended to `field.module.css` (association strip + modal classes, jbox
+- CSS appended to `field.module.css` (association strip + modal classes, ascend
   tokens).
 - `job-contract.test.ts` — 8 validation tests.
 
@@ -150,7 +150,7 @@ Files:
 1. `apps/product/src/lib/customer-estimate-presentation.ts` — port from
    `paris-electric-prototype/apps/product/src/lib/customer-estimate-presentation.ts`
    (already read). Keep `PriceBookSource`, price origins, signature contexts,
-   `canPresentCustomerEstimate` logic. Adapt where the jbox DB differs (published-only).
+   `canPresentCustomerEstimate` logic. Adapt where the ascend DB differs (published-only).
 2. `apps/product/src/lib/customer-estimate-presentation.test.ts` — port tests.
 3. `apps/product/src/lib/price-book.ts` — read model for the catalog:
    published release, categories ordered by `position`, items with their current
@@ -168,7 +168,7 @@ Files:
 ## Phase 3 — FieldEstimator component (the big port)
 
 New file `apps/product/src/app/field/estimates/field-estimator.tsx`, adapted from
-the prototype's 1792-line `field-estimator.tsx` (already read) to jbox's
+the prototype's 1792-line `field-estimator.tsx` (already read) to ascend's
 contracts:
 
 - State: areas, plan markers, line items (with `areaId`, `priceOrigin`,
@@ -180,7 +180,7 @@ contracts:
   `priceOrigin: 'unverified'` with warning badge.
 - Room walkthrough / plan markers: port the marker layer + dimension inputs.
 - `localStorage` draft buffer: reuse the prototype's `DRAFT_STORAGE_KEY` scheme
-  (jbox keys: `jbox-field-estimate:new` create, `jbox-field-estimate:{id}`
+  (ascend keys: `ascend-field-estimate:new` create, `ascend-field-estimate:{id}`
   durable backups) — `restoreAreas`, `saveDraft`, `persistDurableDraft`.
 - Review/print: totals via `@/packages/money` `computeTotals`; print layout.
 - Create-on-save: first Save/Sign POSTs `/api/field/estimates` (create) then
@@ -209,7 +209,7 @@ Files:
    component: search existing customer / add new, then deep-link
    `/field/estimates/new?customerId=`).
 4. `apps/product/src/app/field/field.module.css` — estimator styles appended
-   (port of prototype classes adapted to jbox tokens). **DONE**, including the
+   (port of prototype classes adapted to ascend tokens). **DONE**, including the
    estimate list card view, new-estimate modal, customer directory/detail polish,
    and the job-association strip + modal.
 5. `estimate-actions.tsx` — keep for decline/deliver/duplicate on the detail
@@ -243,7 +243,7 @@ Files:
 
 **DONE 2026-08-15** (`verify:ci` exit 0; smoke-tested against the dev server).
 The prototype freezes the signed estimate into an internal snapshot
-(`invoices.estimate_id` + jsonb). jbox keeps the same one-invoice-per-estimate
+(`invoices.estimate_id` + jsonb). ascend keeps the same one-invoice-per-estimate
 rule with native rows; the invoice is a faithful copy of the signed estimate's
 header, lines, and persisted totals.
 
@@ -255,9 +255,9 @@ header, lines, and persisted totals.
   estimate_id) WHERE estimate_id IS NOT NULL` — at most one invoice per estimate.
 - `estimate_events.event` CHECK gains `'invoice_created'`.
 
-New server files (jbox-native, mirroring `estimate-jobs.ts`):
+New server files (ascend-native, mirroring `estimate-jobs.ts`):
 - `apps/product/src/lib/invoice-contract.ts` — `InvoiceStatus`
-  (`draft|issued|paid|cancelled`, jbox's own enum), `INVOICE_LIMITS`
+  (`draft|issued|paid|cancelled`, ascend's own enum), `INVOICE_LIMITS`
   (title 2–200, notes ≤4000 matching migration-004 CHECKs).
 - `apps/product/src/lib/invoice-record.ts` — `InvoiceRecord` (estimateId,
   displayId, jobId, customerId, status, totals, moneyVersion, contentHash, …)
@@ -298,7 +298,7 @@ and unchanged `updatedAt`; detail page 200; DB shows both event histories.
 - Each phase ends green (`verify:ci` passes). If a phase is interrupted, the plan
   document stays the source of truth; resume at the incomplete phase.
 - Anything already verified in earlier investigation:
-  - jbox `estimate-record.ts`, `estimate-contract.ts`, `estimates.ts`,
+  - ascend `estimate-record.ts`, `estimate-contract.ts`, `estimates.ts`,
     `estimate-document.ts` (contentHash via `canonicalize`), migration 002/003/004,
     money package (`computeTotals`, `divRoundHalfUp`), sign route, field routes
     (customers/estimates/decline/delivery/duplicate/sign).

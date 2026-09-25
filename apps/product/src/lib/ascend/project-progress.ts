@@ -6,7 +6,7 @@
  * below derives from them in integer arithmetic. No floating point.
  *
  * Deliberately out of scope (later phases):
- * - approved change-order effects on contract value: J-Box change_orders
+ * - approved change-order effects on contract value: Ascend change_orders
  *   link to estimate/job, not to modernization projects. Until a
  *   project↔change-order association exists (Phase 6), current contract
  *   value is the project's recorded contract_value_cents.

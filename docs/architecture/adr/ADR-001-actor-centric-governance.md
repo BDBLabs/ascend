@@ -3,12 +3,12 @@
 - **Status:** Accepted
 - **Date:** 2026-08-21
 - **Accepted:** 2026-09-25 (owner authorization; implementation verified: `ai:` namespace enforced in `apps/product/src/lib/ai-actor-context.ts`, tool registry in `apps/product/src/lib/ai-tools/` + `packages/ai/src/agent/registry.ts`)
-- **Scope:** JBox application and reusable ELEANOR governance architecture
+- **Scope:** Ascend application and reusable ELEANOR governance architecture
 - **Decision type:** Foundational architecture
 
 ## Context
 
-JBox increasingly incorporates intelligent components capable of reasoning, inference, planning, recommendation, content generation, tool selection, and potentially autonomous or semi-autonomous action.
+Ascend increasingly incorporates intelligent components capable of reasoning, inference, planning, recommendation, content generation, tool selection, and potentially autonomous or semi-autonomous action.
 
 Traditional application architecture often treats these capabilities as implementation details. That creates a governance gap: the application may know which human initiated a request while losing track of which intelligence reasoned about it, what authority that intelligence possessed, which tools it invoked, what decision it produced, whether confirmation was required, and what actually changed in the system.
 
@@ -18,7 +18,7 @@ Governance cannot reliably be added after the fact if the runtime architecture d
 
 ## Decision
 
-JBox adopts an **Actor-Centric Governance Architecture**.
+Ascend adopts an **Actor-Centric Governance Architecture**.
 
 > **Any intelligence that participates in consequential application behavior SHALL be represented as an identifiable actor with explicit authority, attributable actions, and durable auditability.**
 
@@ -47,7 +47,7 @@ Every intelligent actor receives a unique, auditable identity. Actor identity is
 Examples:
 
 ```text
-ai:assistant:jbox
+ai:assistant:ascend
 ai:agent:scheduling
 ai:agent:estimating
 ai:workflow:invoice-followup
@@ -120,9 +120,9 @@ Audit
 
 The model is never the final authority for its own permissions.
 
-## JBox implementation
+## Ascend implementation
 
-JBox will expose explicit tools rather than granting the model direct database authority.
+Ascend will expose explicit tools rather than granting the model direct database authority.
 
 Initial read-only tools:
 
@@ -144,7 +144,7 @@ The intended execution path is:
 ```text
 Contractor
     ↓
-JBox AI Actor
+Ascend AI Actor
     ↓
 Tool Registry
     ↓
@@ -152,14 +152,14 @@ Authorization
     ↓
 Confirmation Policy
     ↓
-JBox Domain Services
+Ascend Domain Services
     ↓
 PostgreSQL / RLS
     ↓
 Audit
 ```
 
-AI tools must use existing JBox domain services and tenant-scoped data access rather than inventing SQL or bypassing application business rules.
+AI tools must use existing Ascend domain services and tenant-scoped data access rather than inventing SQL or bypassing application business rules.
 
 ## Actor-context bridge
 
@@ -169,7 +169,7 @@ The bridge is implemented in:
 
 `apps/product/src/lib/ai-actor-context.ts`
 
-The actor identity must originate from an authoritative JBox identity source. Model output cannot manufacture an actor ID.
+The actor identity must originate from an authoritative Ascend identity source. Model output cannot manufacture an actor ID.
 
 AI actor IDs use the `ai:` namespace as an additional guardrail.
 

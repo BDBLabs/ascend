@@ -6,7 +6,7 @@ import {
 } from './invoice-contract';
 
 describe('invoice-contract', () => {
-  it('defines the jbox invoice statuses', () => {
+  it('defines the ascend invoice statuses', () => {
     expect(INVOICE_STATUSES).toEqual(['draft', 'issued', 'partially_paid', 'paid', 'cancelled']);
   });
 

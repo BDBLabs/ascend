@@ -10,7 +10,7 @@ function validInput(overrides: Partial<ProvisionTenantInput> = {}): ProvisionTen
   return {
     slug: 'paris-electric',
     displayName: 'Paris Electric',
-    canonicalHostname: 'paris.usejbox.com',
+    canonicalHostname: 'paris.useascend.com',
     config: {
       brand: { primaryColor: '#f3a712', accentColor: '#213547', surfaceColor: '#fffaf0' },
       identity: { businessName: 'Paris Electric', tagline: 'Licensed electricians' },
@@ -39,13 +39,13 @@ describe('validateProvisionTenantInput', () => {
   it('accepts a well-formed input', () => {
     const parsed = validateProvisionTenantInput(validInput());
     expect(parsed.slug).toBe('paris-electric');
-    expect(parsed.canonicalHostname).toBe('paris.usejbox.com');
+    expect(parsed.canonicalHostname).toBe('paris.useascend.com');
     expect(parsed.priceBook?.categories).toHaveLength(1);
   });
 
   it('normalizes the canonical hostname to lowercase', () => {
-    const parsed = validateProvisionTenantInput(validInput({ canonicalHostname: 'Paris.UseJbox.COM' }));
-    expect(parsed.canonicalHostname).toBe('paris.usejbox.com');
+    const parsed = validateProvisionTenantInput(validInput({ canonicalHostname: 'Paris.UseAscend.COM' }));
+    expect(parsed.canonicalHostname).toBe('paris.useascend.com');
   });
 
   it('rejects an invalid slug', () => {

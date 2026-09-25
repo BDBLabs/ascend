@@ -7,7 +7,7 @@ import type { AiActorContext, AiActorRole } from '@contractor-platform/ai/agent'
  * AI is an application actor, never an implicit execution context.
  *
  * The persistent actor UUID is the authoritative identity. actorKey is the
- * stable human-readable namespace (for example ai:assistant:jbox). The model
+ * stable human-readable namespace (for example ai:assistant:ascend). The model
  * can never manufacture either value.
  */
 export type AiActorIdentity = {
@@ -68,7 +68,7 @@ export async function requireAiActorContext(
 
 /**
  * Runs AI work as a first-class application actor. The caller supplies an
- * identity previously resolved from JBox's authoritative actor store.
+ * identity previously resolved from Ascend's authoritative actor store.
  */
 export function runAsAiActor<T>(
   identity: AiActorIdentity,

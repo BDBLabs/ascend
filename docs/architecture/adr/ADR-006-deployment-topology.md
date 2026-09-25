@@ -14,7 +14,7 @@ for everything leaves the cron story implicit.
 
 ## Decision
 
-- **Product** (`jbox-product`, iad) and **Control** (`jbox-control`, iad)
+- **Product** (`ascend-product`, iad) and **Control** (`ascend-control`, iad)
   deploy to Fly from the **repository root** — the Docker build context must
   include the workspace lockfile and `packages/*`. Images run Next
   `standalone` output as non-root (`nextjs`), `NODE_ENV=production`,

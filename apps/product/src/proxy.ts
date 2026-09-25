@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { isAscendMode, isRetiredAscendRoute } from '@/lib/brand';
 import { classifyHost } from '@/lib/host';
 
 const isDevelopment = process.env.NODE_ENV === 'development';
@@ -8,7 +7,7 @@ const isDevelopment = process.env.NODE_ENV === 'development';
 /**
  * Host-shape routing gate + strict Content Security Policy.
  *
- * Host routing: tenant storefronts live on `*.usejbox.com` subdomains and are
+ * Host routing: tenant storefronts live on `*.useascend.com` subdomains and are
  * resolved per request in withTenant()/loadStorefront() — that needs the
  * database, so it happens in render, not here. What proxy CAN do without I/O is
  * gate on host shape: platform hosts and unknown hostnames are rewritten onto
@@ -74,22 +73,8 @@ export function proxy(request: NextRequest) {
     return next();
   }
 
-  // Phase 8 retirements: on Ascend deployments the obsolete J-Box
-  // dashboard and trade-dispatch portal answer 404. Tenant storefronts
-  // return above and are unaffected; J-Box deployments leave
-  // ASCEND_MODE unset and keep serving them.
-  if (
-    isAscendMode() &&
-    isRetiredAscendRoute(request.nextUrl.pathname)
-  ) {
-    const response = new NextResponse('Not found', { status: 404 });
-    response.headers.set('Content-Security-Policy', buildCsp(nonce));
-    return response;
-  }
-
-  // Ascend prototype: the deployment root is the Field login. Tenant
-  // storefronts return above and are unaffected; other deployments leave
-  // ASCEND_ROOT_IS_FIELD_LOGIN unset and keep the platform shell at /.
+  // The deployment root is the Field login when flagged. Tenant
+  // storefronts return above and are unaffected.
   if (
     request.nextUrl.pathname === '/' &&
     process.env.ASCEND_ROOT_IS_FIELD_LOGIN === '1'
@@ -101,7 +86,7 @@ export function proxy(request: NextRequest) {
     return next();
   }
 
-  // The Field workspace lives on the platform host (field.usejbox.com); its
+  // The Field workspace lives on the platform host (field.useascend.com); its
   // pages and API share an origin and authenticate per request, so a platform
   // host must serve /field as-is rather than rewriting it onto the shell.
   // The Ascend workspace (/ascend) authenticates the same way and likewise

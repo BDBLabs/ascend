@@ -9,7 +9,7 @@ import type { ApplicationRole } from '@contractor-platform/domain';
  * Uses otplib (RFC 6238, 30-second windows, SHA1, 6-digit codes).
  */
 
-export const TOTP_ISSUER = 'J-Box Field';
+export const TOTP_ISSUER = 'Ascend Field';
 export const TOTP_WINDOW = 1; // Allow ±1 window (30s each side)
 
 /**

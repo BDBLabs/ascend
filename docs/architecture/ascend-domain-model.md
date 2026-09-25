@@ -1,7 +1,12 @@
 # Ascend Domain Model (Phase 1 — Domain Foundation)
 
+> Product-split note (2026-09-25): Ascend is a standalone product. Identifiers
+> below were updated for the split (predecessor product/brand/domain names
+> removed; originals preserved in git history). §13 is superseded by §17.
+> Phase-0/1 baseline records (§1–§2) describe the tree as it was then.
+
 Branch: `feat/ascend-domain-foundation`. Status: proposal + foundation tables only.
-The J-Box UI, routes, and lifecycle (`/jbox`, `/field`, estimates → jobs → invoices)
+The Ascend UI, routes, and lifecycle (`/ascend`, `/field`, estimates → jobs → invoices)
 are unchanged. Nothing below renames or deletes existing behavior.
 
 ## 1. Phase 0 baseline (recorded before any Ascend change)
@@ -14,11 +19,11 @@ are unchanged. Nothing below renames or deletes existing behavior.
   `@contractor-platform/product` (unused imports/symbols in AI tools,
   change-order and settings pages).
 - `npm run build`: pre-existing failures — `field.module.css` and
-  `../jbox-tokens` unresolvable, plus `@contractor-platform/ai/agent`
+  `../ascend-tokens` unresolvable, plus `@contractor-platform/ai/agent`
   subpath not exported. Phase 1 must not be gated on fixing these, and
   must not make them worse.
 
-## 2. J-Box inventory (what we preserve)
+## 2. Ascend inventory (what we preserve)
 
 Database: 23 migrations (`001`–`023`), ~44 tables. Platform capabilities
 that survive untouched: `organizations` + RLS/`FORCE RLS` + `contractor_app`
@@ -39,11 +44,13 @@ Commercial lifecycle today:
 - Services: `apps/product/src/lib/{customers,estimates,estimate-jobs,
   jobs,invoices,change-orders,price-book}.ts` (+ `-contract` validators,
   `-record` row mappers). Tests mock `@/lib/db`.
-- UI routes: `/jbox/*` (jobs, estimates, invoices, customers,
-  change-orders, price-book, ai), `/field/*` (estimates, customers,
+- UI routes (at the time): the contractor dashboard (`jobs`, `estimates`,
+  `invoices`, `customers`, `change-orders`, `price-book`, `ai`), `/field/*` (estimates, customers,
   invoices/[id], login, storefront, settings), `/platform/*`, public
   estimate token pages, storefront/dispatch groups. API: 51 product
-  routes + 6 control routes (see task inventory).
+  routes + 6 control routes (see task inventory). NOTE: the contractor
+  dashboard and dispatch portal were deleted in the 2026-09-25 product
+  split (§17); `/ascend/*` is the elevator-modernization workspace.
 
 ## 3. Ascend operational model
 
@@ -185,7 +192,7 @@ to `contractor_app`, indexes leading with `organization_id`.
 - `summarizeCostsByWorkPackage` (PostgreSQL GROUP BY) feeds the
   per-package slices; project-wide entries stay in project totals.
 - Deferred as instructed: approved change-order effects on contract
-  value (J-Box COs link to estimate/job, not projects — needs a
+  value (Ascend COs link to estimate/job, not projects — needs a
   project↔CO association in Phase 6) and billed-to-date wiring
   (Phase 6 progress billing).
 
@@ -226,28 +233,32 @@ to `contractor_app`, indexes leading with `organization_id`.
   redirect; all reads inside `withFieldContext`. Read-only views —
   no mutations yet.
 - `proxy.ts` serves `/ascend` as-is (like `/field`); tenant
-  storefront hosts unaffected. `/jbox` routes untouched.
+  storefront hosts unaffected. `/ascend` routes untouched.
 - `ascend-theme.ts` keeps the workspace self-contained for the
   Phase 8 rebrand. Dashboard fans out per-project progress reports
   (fine at prototype scale; aggregate query later).
 - Deferred as instructed: estimate↔project linkage (bids link out
   to Field estimates), write actions, Phase 8 brand cleanup.
 
-## 13. Phase 8 — brand/domain cleanup (no migration, committed)
+## 13. Phase 8 — brand/domain cleanup (SUPERSEDED by §17)
 
-- Single `ASCEND_MODE=1` flag (J-Box deployments unset): staff
+> The flag-and-retire approach below was replaced by the 2026-09-25 product
+> split: no brand modes remain, and the obsolete surfaces were deleted
+> outright rather than 404-retired.
+
+- Single `ASCEND_MODE=1` flag (Ascend deployments unset): staff
   workspace brands as Ascend (`lib/brand.ts`, unit tested) across the
   Field login, shell metadata, access panels, and subscription banner.
 - Obsolete surfaces retired on Ascend deployments with 404 at the
-  proxy: `/jbox/*` (old dashboard) and `/dispatch/*` (trade portal).
+  proxy: the old contractor dashboard and trade portal (`/dispatch/*`).
   Tenant storefronts return before the retire branch; `/field`,
   `/platform` fallback, APIs, and customer estimate links keep
   serving on both deployments.
 - Obsolete electrical assumption removed: default job title is now
   `Service job` (was `Electrical service`).
 - Deliberately deferred: `@contractor-platform/*` npm package renames
-  (user-invisible, shared with jbox-product, high churn), the
-  `*.usejbox.com` domain cutover (DNS + Clerk + tenant hostnames),
+  (user-invisible, shared with ascend-product, high churn), the
+  `*.useascend.com` domain cutover (DNS + Clerk + tenant hostnames),
   trade-specific sketch symbol catalog, and `/platform` marketing copy.
 
 ## 14. Commercial loop (migrations `029`–`030`, committed)
@@ -255,7 +266,7 @@ to `contractor_app`, indexes leading with `organization_id`.
 - `029`: `modernization_projects.estimate_id` — one project per
   signed bid (partial unique index, mirroring 011), SET NULL-safe.
   Only signed, same-customer estimates link.
-- `030`: `project_change_orders` — J-Box change orders attach to
+- `030`: `project_change_orders` — Ascend change orders attach to
   projects without touching the engine; one CO per project max.
   Approved CO value (`change_amount_cents`) flows into current
   contract, margin, and billing snapshots live.
@@ -293,7 +304,7 @@ to `contractor_app`, indexes leading with `organization_id`.
 
 ## 16. Phase 1 scope guardrails
 
-- Additive migration only. No edits to `001`–`023`, no J-Box UI/route
+- Additive migration only. No edits to `001`–`023`, no Ascend UI/route
   changes, no global renames.
 - Server-side data-access in `apps/product/src/lib/` following the
   existing `jobs.ts`/`estimates.ts` pattern (`server-only`, `db()`,
@@ -301,3 +312,26 @@ to `contractor_app`, indexes leading with `organization_id`.
   `jobs.test.ts`.
 - `LATEST_MIGRATION` in `packages/database/src/index.ts` advances to
   `024_ascend_domain_foundation.sql`.
+
+## 17. Product-split sanitation (2026-09-25, committed)
+
+Ascend declared a standalone product; all predecessor product/brand/domain
+references removed (originals in git history):
+
+- Deleted: the legacy contractor-dashboard routes (estimates, invoices, jobs,
+  customers, price-book, change-orders, ai views + shared components), the dispatch
+  portal UI (`/dispatch/*`), and the legacy contractor-setup wizard pages
+  and API route. No code
+  outside the deleted trees imported them. The `/api/dispatch/*` data routes
+  and `021` dispatch-ticket tables remain (field-consumable API, tested).
+- `lib/brand.ts` collapsed to Ascend-only (no modes/flags); proxy
+  retirement logic removed (deleted routes 404 naturally).
+- Domains: `PLATFORM_BASE_DOMAIN` env (default `useascend.com`);
+  `TenantDomain`/`PLATFORM_HOSTS`, onboarding canonical hostnames, and the
+  control-plane reserved-subdomain check derive from it. DNS verification
+  tokens renamed to `ascend-verify`.
+- Provisioning scripts create `ascend_runtime` / `ascend_control` /
+  `ascend_owner` logins; Fly apps renamed `ascend-product` / `ascend-control`.
+- Historical records intentionally NOT rewritten: applied SQL migrations
+  (checksummed in `_migrations`; comments in `011`/`012` reference the
+  predecessor) and git history itself.

@@ -60,7 +60,7 @@ const ESTIMATE = {
 const CONFIG = {
   version: 'v1',
   identity: { businessName: 'Paris Electric', tagline: '' },
-  contact: { phone: '', email: 'hello@paris.usejbox.com', address: '', hours: '' },
+  contact: { phone: '', email: 'hello@paris.useascend.com', address: '', hours: '' },
 } as unknown as ConfigV1;
 
 const CONTEXT = { organizationId: ORGANIZATION_ID, actorId: 'actor-1', requestId: 'req-1' };
@@ -79,7 +79,7 @@ beforeEach(() => {
   mocks.customerAccessTokensConfigured.mockReturnValue(true);
   mocks.issueCustomerAccessGrant.mockResolvedValue(granted('token-view'));
   mocks.enqueueOutboxMessage.mockResolvedValue(undefined);
-  mocks.dbQuery.mockResolvedValue([{ hostname: 'paris.usejbox.com' }]);
+  mocks.dbQuery.mockResolvedValue([{ hostname: 'paris.useascend.com' }]);
   process.env.RESEND_API_KEY = 're_test_abcdefghijkl';
 });
 
@@ -160,12 +160,12 @@ describe('createEstimateDelivery enqueue', () => {
     expect(payload).toMatchObject({
       displayId: 'EST-0001',
       customerEmail: 'customer@example.com',
-      from: 'hello@paris.usejbox.com',
-      replyTo: 'hello@paris.usejbox.com',
+      from: 'hello@paris.useascend.com',
+      replyTo: 'hello@paris.useascend.com',
       companyName: 'Paris Electric',
-      viewUrl: 'https://paris.usejbox.com/estimates/token-view',
-      approveUrl: 'https://paris.usejbox.com/estimates/token-sign?intent=approve',
-      declineUrl: 'https://paris.usejbox.com/estimates/token-sign?intent=decline',
+      viewUrl: 'https://paris.useascend.com/estimates/token-view',
+      approveUrl: 'https://paris.useascend.com/estimates/token-sign?intent=approve',
+      declineUrl: 'https://paris.useascend.com/estimates/token-sign?intent=decline',
     });
     expect(typeof payload.expiresAt).toBe('string');
 

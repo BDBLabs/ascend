@@ -84,7 +84,7 @@ function DraftPreview({ draft, businessName }: { draft: Draft; businessName: str
   return (
     <div className="draft-preview">
       <div className="eyebrow">Your storefront at</div>
-      <div className="subdomain-preview">{clientSlug(businessName)}.usejbox.com</div>
+      <div className="subdomain-preview">{clientSlug(businessName)}.useascend.com</div>
 
       <div className="card draft-card">
         <div className="eyebrow">Tagline</div>
@@ -312,7 +312,7 @@ export default function OnboardingWizard() {
             </li>
             <li>
               Staff sign in at{' '}
-              <a href="https://field.usejbox.com">field.usejbox.com</a> — service
+              <a href="https://field.useascend.com">field.useascend.com</a> — service
               requests from your site land straight in the Field queue.
             </li>
             <li>
@@ -321,7 +321,7 @@ export default function OnboardingWizard() {
             </li>
           </ol>
         </div>
-        <p><a className="button" href="/">Back to J-Box</a></p>
+        <p><a className="button" href="/">Back to Ascend</a></p>
       </div>
     );
   }

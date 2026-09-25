@@ -13,7 +13,7 @@ const HOSTNAME_PATTERN = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\
 
 /**
  * GET /api/field/domains — list all domains for the current organization.
- * Returns the canonical *.usejbox.com domain and any custom domains.
+ * Returns the canonical *.useascend.com domain and any custom domains.
  */
 export async function GET() {
   const principal = await getFieldPrincipal();
@@ -83,9 +83,9 @@ export async function POST(request: NextRequest) {
     return privateJson({ error: 'hostname is not a valid domain' }, 400);
   }
 
-  // Check if this is a *.usejbox.com subdomain (reserved)
-  if (hostname.endsWith('.usejbox.com')) {
-    return privateJson({ error: 'cannot add *.usejbox.com subdomains as custom domains' }, 400);
+  // Check if this is a *.useascend.com subdomain (reserved)
+  if (hostname.endsWith('.useascend.com')) {
+    return privateJson({ error: 'cannot add *.useascend.com subdomains as custom domains' }, 400);
   }
 
   try {

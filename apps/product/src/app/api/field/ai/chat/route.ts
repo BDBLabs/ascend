@@ -10,7 +10,7 @@ import { runAgentLoop } from '@/lib/ai-agent-loop';
 import { createConversation } from '@/lib/ai-conversations';
 import { findAiActorByKey, provisionAiActor } from '@/lib/ai-actors';
 
-const DEFAULT_ACTOR_KEY = 'ai:assistant:jbox';
+const DEFAULT_ACTOR_KEY = 'ai:assistant:ascend';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
       if (!identity) {
         identity = await provisionAiActor({
           actorKey: DEFAULT_ACTOR_KEY,
-          displayName: 'J-Box Assistant',
+          displayName: 'Ascend Assistant',
           authorityRole: 'employee',
           modelProvider: process.env.AI_BASE_URL ? new URL(process.env.AI_BASE_URL).hostname : 'nvidia',
           modelName: process.env.AI_MODEL ?? 'meta/llama-3.1-405b-instruct',

@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic';
 type RouteContext = { params: Promise<{ id: string }> };
 
 /**
- * Creates the draft J-Box invoice for an approved application and files
+ * Creates the draft Ascend invoice for an approved application and files
  * the linkage (same path as a manually linked invoice). No body.
  */
 export async function POST(request: NextRequest, context: RouteContext) {

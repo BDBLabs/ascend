@@ -7,8 +7,8 @@ import styles from '../../field.module.css';
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
-  title: 'Domains — J-Box Field',
-  description: 'Manage your custom domains for the J-Box storefront.',
+  title: 'Domains — Ascend Field',
+  description: 'Manage your custom domains for the Ascend storefront.',
   robots: { index: false, follow: false },
 };
 
@@ -55,7 +55,7 @@ export default async function DomainsPage() {
       return (
         <main className={styles.accessPage}>
           <section className={styles.accessPanel}>
-            <p className={styles.eyebrow}>J-Box Field</p>
+            <p className={styles.eyebrow}>Ascend Field</p>
             <h1>Sign in to manage domains.</h1>
             <p>You need to sign in to access domain settings.</p>
           </section>
@@ -66,7 +66,7 @@ export default async function DomainsPage() {
     return (
       <main className={styles.accessPage}>
         <section className={styles.accessPanel}>
-          <p className={styles.eyebrow}>J-Box Field</p>
+          <p className={styles.eyebrow}>Ascend Field</p>
           <h1>Staff access is not configured.</h1>
           <p>No identity provider is configured for this deployment yet.</p>
         </section>
@@ -95,7 +95,7 @@ export default async function DomainsPage() {
       <section style={{ marginBottom: 32 }}>
         <h2 className={styles.sectionTitle}>Canonical Domain</h2>
         <p style={{ color: 'var(--muted)', fontSize: '0.9rem', marginTop: 0, marginBottom: 16 }}>
-          This is your default domain provided by J-Box. Customer-facing links
+          This is your default domain provided by Ascend. Customer-facing links
           (estimates, invoices) use this domain.
         </p>
         {canonicalDomain ? (
@@ -125,7 +125,7 @@ export default async function DomainsPage() {
           <h2 className={styles.sectionTitle} style={{ margin: 0 }}>Custom Domains</h2>
         </div>
         <p style={{ color: 'var(--muted)', fontSize: '0.9rem', marginTop: 0, marginBottom: 16 }}>
-          Point your own domain to J-Box. You&apos;ll need to add a CNAME record
+          Point your own domain to Ascend. You&apos;ll need to add a CNAME record
           pointing to <code>cname.vercel-dns.com</code>.
         </p>
 
@@ -134,7 +134,7 @@ export default async function DomainsPage() {
             <p>No custom domains configured yet.</p>
             <p style={{ fontSize: '0.85rem' }}>
               Add your business domain (e.g., smithplumbing.com) to use it
-              instead of the default J-Box subdomain.
+              instead of the default Ascend subdomain.
             </p>
           </div>
         ) : (

@@ -1,11 +1,11 @@
-# J-Box Control — operator plane.
+# Ascend Control — operator plane.
 #
 # Deploy from the REPOSITORY ROOT so the Docker build context includes the
 # workspace lockfile and packages/*:
 #
 #   fly deploy --config fly.control.toml
 #
-app = 'jbox-control'
+app = 'ascend-control'
 # Same region as the Neon project (aws-us-east-1). Every request makes several
 # round trips to Postgres, so co-location with the database matters more here
 # than edge proximity to the visitor.

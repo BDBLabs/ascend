@@ -37,7 +37,7 @@ async function connectionString(
   projectId,
   branch,
   pooled,
-  roleName = 'jbox_owner',
+  roleName = 'ascend_owner',
 ) {
   const args = [
     '-y',
@@ -49,7 +49,7 @@ async function connectionString(
     '--role-name',
     roleName,
     '--database-name',
-    'jbox',
+    'ascend',
     ...(pooled ? ['--pooled'] : []),
   ];
   const { stdout } = await run('npx', args);
@@ -125,19 +125,19 @@ try {
       projectId,
       branch,
       false,
-      'jbox_runtime',
+      'ascend_runtime',
     );
     const runtimePooled = await connectionString(
       projectId,
       branch,
       true,
-      'jbox_runtime',
+      'ascend_runtime',
     );
     const controlPooled = await connectionString(
       projectId,
       branch,
       true,
-      'jbox_control',
+      'ascend_control',
     );
     const writer = resolve(process.cwd(), 'scripts/write-neon-env.mjs');
     const result = await run(
@@ -170,25 +170,25 @@ try {
 DO $provision$
 BEGIN
   IF EXISTS (
-    SELECT 1 FROM pg_roles WHERE rolname IN ('jbox_runtime', 'jbox_control')
+    SELECT 1 FROM pg_roles WHERE rolname IN ('ascend_runtime', 'ascend_control')
   ) THEN
-    RAISE EXCEPTION 'J-Box login roles already exist on this branch.';
+    RAISE EXCEPTION 'Ascend login roles already exist on this branch.';
   END IF;
 END;
 $provision$;
 
-CREATE ROLE jbox_runtime LOGIN PASSWORD '${runtimePassword}'
+CREATE ROLE ascend_runtime LOGIN PASSWORD '${runtimePassword}'
   NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
-GRANT contractor_app, platform_runtime TO jbox_runtime;
-GRANT USAGE ON SCHEMA public TO jbox_runtime;
+GRANT contractor_app, platform_runtime TO ascend_runtime;
+GRANT USAGE ON SCHEMA public TO ascend_runtime;
 
-CREATE ROLE jbox_control LOGIN PASSWORD '${controlPassword}'
+CREATE ROLE ascend_control LOGIN PASSWORD '${controlPassword}'
   NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
-GRANT control_app TO jbox_control;
-GRANT USAGE ON SCHEMA public TO jbox_control;
+GRANT control_app TO ascend_control;
+GRANT USAGE ON SCHEMA public TO ascend_control;
 
 ${rotateOwnerFlag === 'rotate-owner'
-    ? `ALTER ROLE jbox_owner PASSWORD '${ownerPassword}';`
+    ? `ALTER ROLE ascend_owner PASSWORD '${ownerPassword}';`
     : ''}
 `;
   await psql(ownerDirect, sql);
@@ -210,8 +210,8 @@ FROM (
     'contractor_app',
     'control_app',
     'platform_runtime',
-    'jbox_runtime',
-    'jbox_control'
+    'ascend_runtime',
+    'ascend_control'
   )
 ) AS role_check;
 `);
@@ -227,7 +227,7 @@ FROM (
     if (role.rolbypassrls || role.neon_superuser_member) {
       throw new Error('role_verification_privilege_failure');
     }
-    const isLogin = ['jbox_runtime', 'jbox_control'].includes(role.rolname);
+    const isLogin = ['ascend_runtime', 'ascend_control'].includes(role.rolname);
     if (role.rolcanlogin !== isLogin || role.rolinherit) {
       throw new Error('role_verification_attribute_failure');
     }
@@ -236,18 +236,18 @@ FROM (
   const credentials = {
     DATABASE_URL: withCredentials(
       ownerPooled,
-      'jbox_runtime',
+      'ascend_runtime',
       runtimePassword,
     ),
     DATABASE_URL_UNPOOLED: withCredentials(
       ownerDirect,
-      'jbox_runtime',
+      'ascend_runtime',
       runtimePassword,
     ),
     DATABASE_URL_OWNER: ownerDirect.toString(),
     CONTROL_DATABASE_URL: withCredentials(
       ownerPooled,
-      'jbox_control',
+      'ascend_control',
       controlPassword,
     ),
   };

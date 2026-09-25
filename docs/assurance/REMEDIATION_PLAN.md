@@ -115,7 +115,7 @@ Do not add `RESEND_API_KEY` until sender/domain/recipient policy is approved and
 ### P4.2 Preview and schema promotion
 
 - Migrate Preview from 002 to current and supply non-production DB/auth/storage contract.
-- Fix `provision-neon-branch.mjs` so `jbox_control` can assume both required roles.
+- Fix `provision-neon-branch.mjs` so `ascend_control` can assume both required roles.
 - Add a pre-promotion check for latest migration, role memberships, no owner/BYPASS runtime, required secrets, and prohibited demo flags.
 - Update product/control health to the current schema and separate liveness/readiness.
 
@@ -138,7 +138,7 @@ Do not add `RESEND_API_KEY` until sender/domain/recipient policy is approved and
 
 ## Release gate
 
-Do not treat JBox as production-ready until:
+Do not treat Ascend as production-ready until:
 
 1. P0 and P1 are complete and independently re-verified.
 2. Every Critical/High item in the production-readiness report has a regression test and deployed evidence.
