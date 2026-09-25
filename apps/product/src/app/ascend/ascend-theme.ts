@@ -62,6 +62,13 @@ export const bigNumber: CSSProperties = {
   fontFamily: 'ui-monospace, monospace',
 };
 
+/** Wraps every data table so it scrolls sideways on narrow screens instead of overflowing the page. */
+export const tableScroll: CSSProperties = {
+  width: '100%',
+  overflowX: 'auto',
+  WebkitOverflowScrolling: 'touch',
+};
+
 export const table: CSSProperties = {
   width: '100%',
   borderCollapse: 'collapse',

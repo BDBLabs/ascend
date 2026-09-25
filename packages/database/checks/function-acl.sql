@@ -80,6 +80,9 @@ INSERT INTO expected_acl (role_name, signature) VALUES
   ('control_app',    'control_identity_set_status(text,uuid,text,text)'),
   ('control_app',    'control_password_reset_issue(text,uuid,uuid,text,integer,boolean)'),
   ('control_app',    'control_audit(text,text,uuid,jsonb)'),
+  -- operations windows (038)
+  ('control_app',    'control_tenant_health(uuid)'),
+  ('control_app',    'control_revoke_customer_links(text,uuid,uuid,text)'),
   ('platform_runtime','link_stripe_customer(uuid,text)'),
   ('platform_runtime','sync_stripe_subscription(text,text,text,text,timestamp with time zone)'),
   ('platform_runtime','resolve_organization_stripe_customer(uuid)'),

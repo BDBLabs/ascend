@@ -15,6 +15,7 @@ import {
   table,
   td,
   th,
+  tableScroll,
 } from '../ascend-theme';
 
 export const dynamic = 'force-dynamic';
@@ -52,6 +53,7 @@ export default async function AscendBuildingsPage() {
         <p style={muted}>No buildings yet.</p>
       ) : (
         <div style={card}>
+          <div style={tableScroll}>
           <table style={table}>
             <thead>
               <tr>
@@ -80,6 +82,7 @@ export default async function AscendBuildingsPage() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

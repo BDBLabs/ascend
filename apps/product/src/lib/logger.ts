@@ -34,16 +34,46 @@ type LogEntry = {
 
 const isDevelopment = process.env.NODE_ENV === 'development';
 
+// P5: logs never carry credentials or bearer links. Keys that name a secret are
+// replaced wholesale; string values are scrubbed of bearer tokens, token path
+// segments / query parameters, and credentials embedded in connection URLs.
+const SECRET_KEY = /pass(word)?|secret|token|authorization|cookie|totp|api[_-]?key|signature|credential|hash/i;
+const SCRUBBERS: Array<[RegExp, string]> = [
+  [/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, 'Bearer [redacted]'],
+  [/(\/(?:estimates|invoices|documents)\/)[A-Za-z0-9_-]{20,}/g, '$1[redacted]'],
+  [/([?&](?:token|t|code)=)[^&\s"']+/gi, '$1[redacted]'],
+  [/(\b[a-z][a-z0-9+.-]*:\/\/[^:/\s]+:)[^@\s]+@/gi, '$1[redacted]@'],
+  [/\b(?:re|sk|rk|whsec)_[A-Za-z0-9_]{8,}\b/g, '[redacted-key]'],
+];
+
+export function redactValue(value: unknown, depth = 0): unknown {
+  if (depth > 6) return '[truncated]';
+  if (typeof value === 'string') {
+    return SCRUBBERS.reduce((text, [pattern, replacement]) => text.replace(pattern, replacement), value);
+  }
+  if (value instanceof Error) {
+    return { name: value.name, message: redactValue(value.message, depth + 1) };
+  }
+  if (Array.isArray(value)) return value.map((item) => redactValue(item, depth + 1));
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([key, item]) => [
+      key,
+      SECRET_KEY.test(key) ? '[redacted]' : redactValue(item, depth + 1),
+    ]));
+  }
+  return value;
+}
+
 function write(level: LogLevel, msg: string, extra: LogFields = {}): void {
   const ctx = currentOrganizationContext();
 
   const entry: LogEntry = {
     ts: new Date().toISOString(),
     level,
-    msg,
+    msg: redactValue(msg) as string,
     ...(ctx?.requestId ? { requestId: ctx.requestId } : {}),
     ...(ctx?.organizationId ? { organizationId: ctx.organizationId } : {}),
-    ...extra,
+    ...(redactValue(extra) as LogFields),
   };
 
   const line = isDevelopment

@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
+import { customerAccessTokenHasValidSyntax, hashCustomerAccessToken } from '@/lib/customer-access-tokens';
 import { db, isDatabaseConfigured } from '@/lib/db';
 import { withTenant } from '@/lib/tenant';
 import styles from './track.module.css';
@@ -170,19 +171,23 @@ export default async function TrackPage({ searchParams }: TrackPageProps) {
   }
 
   const documents: TrackedDocument[] = [];
+  // The token is hashed here, exactly as grants store it. (The previous SQL
+  // used pgcrypto's digest(), which no migration installs, so every lookup
+  // failed.) Malformed codes never reach the database.
+  const tokenHash = customerAccessTokenHasValidSyntax(token) ? hashCustomerAccessToken(token) : null;
 
-  await withTenant(async () => {
+  if (tokenHash) await withTenant(async () => {
     const sql = db();
 
     const estimates = (await sql.query(
       `SELECT e.id, e.display_id, e.title, e.status, e.created_at, e.total_cents
        FROM estimates e
        JOIN customer_access_grants g ON g.document_type = 'estimate' AND g.document_id = e.id
-       WHERE g.token_hash = encode(digest($1::text, 'sha256'), 'hex')
+       WHERE g.token_hash = $1
          AND g.status = 'active'
        ORDER BY e.created_at DESC
        LIMIT 10`,
-      [token],
+      [tokenHash],
     )) as Array<{
       id: string; display_id: string; title: string; status: string;
       created_at: string; total_cents: number;
@@ -205,11 +210,11 @@ export default async function TrackPage({ searchParams }: TrackPageProps) {
       `SELECT i.id, i.display_id, i.title, i.status, i.created_at, i.total_cents
        FROM invoices i
        JOIN customer_access_grants g ON g.document_type = 'invoice' AND g.document_id = i.id
-       WHERE g.token_hash = encode(digest($1::text, 'sha256'), 'hex')
+       WHERE g.token_hash = $1
          AND g.status = 'active'
        ORDER BY i.created_at DESC
        LIMIT 10`,
-      [token],
+      [tokenHash],
     )) as Array<{
       id: string; display_id: string; title: string; status: string;
       created_at: string; total_cents: number;
@@ -224,7 +229,8 @@ export default async function TrackPage({ searchParams }: TrackPageProps) {
         statusColor: getStatusColor('invoice', i.status),
         createdAt: i.created_at,
         totalCents: i.total_cents,
-        link: `/invoices/${token}`,
+        // There is no customer invoice page yet; keep the customer on status.
+        link: `/track?token=${encodeURIComponent(token)}`,
       });
     }
   });
@@ -252,7 +258,10 @@ return (
           <h1>Your Project Status</h1>
           <p>Track the status of your estimates and invoices.</p>
         </div>
-        <StatusStepper />
+        <StatusStepper
+          type={documents.some((doc) => doc.type === 'invoice') ? 'invoice' : documents[0].type}
+          status={(documents.find((doc) => doc.type === 'invoice') ?? documents[0]).status}
+        />
         <div className={styles.documentGrid}>
           {documents.map((doc) => (
             <DocumentCard key={`${doc.type}-${doc.displayId}`} doc={doc} />

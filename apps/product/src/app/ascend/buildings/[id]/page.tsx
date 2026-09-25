@@ -17,6 +17,7 @@ import {
   th,
   money,
   sectionTitle,
+  tableScroll,
 } from '../../ascend-theme';
 
 export const dynamic = 'force-dynamic';
@@ -78,6 +79,7 @@ export default async function AscendBuildingDetailPage({ params }: PageProps) {
         <p style={muted}>No units recorded for this building.</p>
       ) : (
         <div style={card}>
+          <div style={tableScroll}>
           <table style={table}>
             <thead>
               <tr>
@@ -110,6 +112,7 @@ export default async function AscendBuildingDetailPage({ params }: PageProps) {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
@@ -118,6 +121,7 @@ export default async function AscendBuildingDetailPage({ params }: PageProps) {
         <p style={muted}>No projects at this building.</p>
       ) : (
         <div style={card}>
+          <div style={tableScroll}>
           <table style={table}>
             <thead>
               <tr>
@@ -140,6 +144,7 @@ export default async function AscendBuildingDetailPage({ params }: PageProps) {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

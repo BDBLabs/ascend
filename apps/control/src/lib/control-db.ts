@@ -37,7 +37,7 @@ function connectionPool() {
     });
     pool = new pg.Pool({
       ...guard.config,
-      max: Number(process.env.CONTROL_DATABASE_POOL_MAX ?? 5),
+      max: Number(process.env.CONTROL_DATABASE_POOL_MAX ?? (process.env.VERCEL ? 2 : 5)),
       idleTimeoutMillis: 30_000,
       connectionTimeoutMillis: 10_000,
     });

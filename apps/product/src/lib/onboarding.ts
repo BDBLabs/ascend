@@ -415,7 +415,7 @@ export async function provisionTenantViaControlPlane(
     const message = isRecord(body) && typeof body.error === 'string'
       ? body.error
       : `signup service responded ${response.status}`;
-    const status = response.status === 409 ? 409 : 502;
+    const status = response.status === 409 ? 409 : response.status === 429 ? 429 : 502;
     throw new OnboardingError(message, status);
   }
 

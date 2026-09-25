@@ -22,7 +22,8 @@
     "db:verify": "node --env-file-if-exists=.env.local packages/database/verify.mjs",
     "db:seed:dev": "node --env-file-if-exists=.env.local packages/database/seed-dev-tenant.mjs",
     "db:stamp": "node --env-file-if-exists=.env.local packages/database/stamp-environment.mjs",
-    "promotion:check": "node scripts/promotion-check.mjs"
+    "promotion:check": "node scripts/promotion-check.mjs",
+    "db:preflight": "node --env-file-if-exists=.env.local packages/database/preflight.mjs"
   },
   "engines": {
     "node": "22.x"

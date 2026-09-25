@@ -12,7 +12,11 @@ export const dynamic = 'force-dynamic';
  * LATEST_MIGRATION is imported from @contractor-platform/database so both apps
  * always agree on the expected schema version without hand-rolling the string.
  */
-export async function GET() {
+export async function GET(request?: Request) {
+  // Liveness: answers without touching the database (P4.2).
+  if (request && new URL(request.url).searchParams.get('probe') === 'live') {
+    return Response.json({ ok: true, service: 'control', probe: 'live' }, { headers: { 'Cache-Control': 'no-store' } });
+  }
   const checks: Record<string, boolean | number> = { database: false, schema: false };
 
   if (isControlDatabaseConfigured()) {

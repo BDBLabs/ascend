@@ -20,6 +20,7 @@ import {
   td,
   th,
   money,
+  tableScroll,
 } from '../ascend-theme';
 
 export const dynamic = 'force-dynamic';
@@ -70,6 +71,7 @@ export default async function AscendBidsPage() {
         <p style={muted}>No bids yet.</p>
       ) : (
         <div style={card}>
+          <div style={tableScroll}>
           <table style={table}>
             <thead>
               <tr>
@@ -129,6 +131,7 @@ export default async function AscendBidsPage() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

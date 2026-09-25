@@ -105,6 +105,10 @@ jobs:
         env:
           INTEGRATION_DATABASE_URL: postgresql://ascend_runtime:ci-only@localhost:5432/ascend
           INTEGRATION_OWNER_URL: postgresql://ascend_owner:ci-only@localhost:5432/ascend
+      - name: Pre-promotion gate (schema, roles, RLS, function ACL) passes
+        run: node packages/database/preflight.mjs
+        env:
+          DATABASE_URL_OWNER: postgresql://ascend_owner:ci-only@localhost:5432/ascend
       - name: Re-running the migrator is a no-op
         run: npm run db:migrate | tee migrate.log && grep -q 'up to date' migrate.log
         env:

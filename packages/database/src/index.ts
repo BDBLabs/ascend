@@ -17,7 +17,7 @@
  * the expected schema version without keeping two hand-rolled strings in sync.
  * Update it whenever a new migration file is added to migrations/.
  */
-export const LATEST_MIGRATION = '037_signed_estimate_evidence_and_delivery.sql';
+export const LATEST_MIGRATION = '038_operations_windows.sql';
 
 // Runtime contract (environment identity + explicit TLS), shared with the
 // operator tools. The registry is imported statically so it is bundled with

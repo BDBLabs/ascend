@@ -1,4 +1,5 @@
 import { authorizeControl } from '@/lib/control-auth';
+import { onboardingQuotaExceeded } from '@/lib/control-operations';
 import { listOrganizations, provisionTenant } from '@/lib/control-plane';
 
 export const dynamic = 'force-dynamic';
@@ -18,6 +19,13 @@ export async function POST(request: Request) {
     body = await request.json();
   } catch {
     return Response.json({ error: 'request body must be JSON' }, { status: 400 });
+  }
+
+  if (auth.caller.kind === 'service' && await onboardingQuotaExceeded(auth.caller.id)) {
+    return Response.json(
+      { ok: false, error: 'onboarding is temporarily limited; try again later' },
+      { status: 429 },
+    );
   }
 
   try {

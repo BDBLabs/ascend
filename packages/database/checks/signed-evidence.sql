@@ -182,6 +182,27 @@ BEGIN
 END;
 $$;
 
+-- --------------------------------------------------------------------------
+-- 5. Incident response: audited bulk revocation of a tenant's customer links
+-- --------------------------------------------------------------------------
+DO $$
+DECLARE
+  n bigint;
+BEGIN
+  SET LOCAL ROLE control_app;
+  n := control_revoke_customer_links('operator:incident', 'e1e1e1e1-0000-0000-0000-00000000000a', NULL, 'suspected link leak');
+  RESET ROLE;
+  IF n < 2 THEN RAISE EXCEPTION 'Link revocation revoked % links; expected the active pair.', n; END IF;
+  IF EXISTS (SELECT 1 FROM customer_access_grants
+             WHERE organization_id = 'e1e1e1e1-0000-0000-0000-00000000000a' AND status = 'active') THEN
+    RAISE EXCEPTION 'Active customer links survived an incident revocation.';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM identity_audit_events WHERE actor = 'operator:incident' AND action = 'links.revoke') THEN
+    RAISE EXCEPTION 'Link revocation was not audited.';
+  END IF;
+END;
+$$;
+
 ROLLBACK;
 
 \echo 'signed-evidence.sql: all checks passed'

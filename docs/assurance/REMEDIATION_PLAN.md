@@ -2,6 +2,8 @@
 
 Assurance snapshot: 2026-08-14
 
+Implementation status, evidence and remaining operator actions: `REMEDIATION_STATUS.md`.
+
 Goal: close the observed production and cross-layer assurance defects without broad redesign.
 
 ## P0 — Immediate containment

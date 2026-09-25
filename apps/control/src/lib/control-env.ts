@@ -9,7 +9,11 @@ import 'server-only';
  * and never holds BYPASSRLS.
  */
 export function controlDatabaseUrl(): string {
-  const url = process.env.CONTROL_DATABASE_URL_UNPOOLED ?? process.env.CONTROL_DATABASE_URL;
+  // Serverless (Vercel): the pooled endpoint, because every function instance
+  // holds its own pool (P4.3 connection budget). Long-lived server: direct.
+  const url = process.env.VERCEL
+    ? process.env.CONTROL_DATABASE_URL ?? process.env.CONTROL_DATABASE_URL_UNPOOLED
+    : process.env.CONTROL_DATABASE_URL_UNPOOLED ?? process.env.CONTROL_DATABASE_URL;
   if (!url) throw new Error('CONTROL_DATABASE_URL is not configured.');
   return url;
 }

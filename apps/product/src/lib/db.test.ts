@@ -119,3 +119,23 @@ describe('platformDb (cross-tenant)', () => {
     expect(statements.some((s) => s.includes('set_application_context'))).toBe(false);
   });
 });
+
+describe('poolSettings (connection budget)', () => {
+  it('uses the pooled endpoint and a small pool on serverless', async () => {
+    const { poolSettings } = await import('@/lib/db');
+    expect(poolSettings({ VERCEL: '1', DATABASE_URL: 'pooled', DATABASE_URL_UNPOOLED: 'direct' } as NodeJS.ProcessEnv))
+      .toEqual({ connectionString: 'pooled', max: 3, idleTimeoutMillis: 5_000 });
+  });
+
+  it('uses the direct endpoint and a larger pool on a long-lived server', async () => {
+    const { poolSettings } = await import('@/lib/db');
+    expect(poolSettings({ DATABASE_URL: 'pooled', DATABASE_URL_UNPOOLED: 'direct' } as NodeJS.ProcessEnv))
+      .toEqual({ connectionString: 'direct', max: 10, idleTimeoutMillis: 30_000 });
+  });
+
+  it('honours an explicit DATABASE_POOL_MAX and ignores junk', async () => {
+    const { poolSettings } = await import('@/lib/db');
+    expect(poolSettings({ VERCEL: '1', DATABASE_URL: 'p', DATABASE_POOL_MAX: '2' } as NodeJS.ProcessEnv).max).toBe(2);
+    expect(poolSettings({ DATABASE_URL: 'p', DATABASE_POOL_MAX: 'lots' } as NodeJS.ProcessEnv).max).toBe(10);
+  });
+});

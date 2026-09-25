@@ -55,6 +55,8 @@ const syntheticFixtures = [
   // Synthetic hosts in runtime-contract tests.
   'postgresql://ascend_owner:pw@${endpoint}',
   'postgresql://u:p@',
+  // Expected output of the log redactor's tests.
+  'postgresql://u:[redacted]@',
 ];
 
 const paths = result.stdout.split('\0').filter(Boolean);
