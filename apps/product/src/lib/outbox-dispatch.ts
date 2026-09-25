@@ -1,6 +1,6 @@
 import 'server-only';
 
-import type { OutboxMessage } from '@/lib/transactional-outbox';
+import type { OutboxMessage, OutboxOutcome } from '@/lib/transactional-outbox';
 import {
   claimOutboxMessages,
   finishOutboxMessage,
@@ -8,9 +8,16 @@ import {
 
 const RESEND_API_URL = 'https://api.resend.com/emails';
 const MAX_DISPATCH_BATCH = 50;
+// A drain run claims batches until the queue is empty, MAX_DRAIN_BATCHES is
+// reached, or the time budget is spent -- whichever comes first. The budget
+// stays well inside the 5-minute claim lease and the platform function limit,
+// so a run never holds a claim past its lease.
+const MAX_DRAIN_BATCHES = 10;
+const DEFAULT_DRAIN_BUDGET_MS = 45_000;
 
 // The finish call is the single source of truth for a message's delivery state.
-// finish_outbox_message is idempotent by id, so retrying it is safe.
+// finish_outbox_message is fenced by the claim token, so retrying it is safe:
+// a repeat either records the same outcome once or reports "not owner".
 const FINISH_MAX_ATTEMPTS = 3;
 const FINISH_BASE_DELAY_MS = 50;
 
@@ -222,29 +229,35 @@ export async function dispatchOutboxMessage(
   if (!isEstimateDeliveryPayload(message.payload)) {
     throw new OutboxDispatchError('invalid_payload', false);
   }
-  await sendEstimateDeliveryEmail(message.payload, message.key, fetchImplementation);
+  // The outbox key is the delivery ID; the row id is the fallback so every send
+  // carries a stable provider idempotency key across re-claims.
+  await sendEstimateDeliveryEmail(message.payload, message.key || message.id, fetchImplementation);
 }
 
 /**
  * Records the dispatch outcome, retrying the finish UPDATE to completion. If a
  * transient DB failure is swallowed here, the row stays 'claimed'; when the
- * 5-minute lease expires it is re-claimed and the email is re-sent to the
- * customer (see #41). Retrying closes that duplicate-delivery window — the
- * retry only ever re-applies the same idempotent UPDATE by id.
+ * 5-minute lease expires it is re-claimed and re-sent under the same
+ * Idempotency-Key (the outbox key, i.e. the delivery ID), so the provider
+ * de-duplicates it. Retrying closes that window in the common case.
+ *
+ * Returns whether this claim recorded the outcome (false: the lease was
+ * reclaimed by another worker, which now owns the row).
  *
  * Exported for tests; not part of the public dispatch API.
  */
 export async function finishWithRetry(
-  id: string,
-  succeeded: boolean,
-  error: string | null,
-  finish: (id: string, succeeded: boolean, error: string | null) => Promise<void>,
-): Promise<void> {
+  message: Pick<OutboxMessage, 'id' | 'claimToken'>,
+  outcome: OutboxOutcome,
+  finish: (
+    message: Pick<OutboxMessage, 'id' | 'claimToken'>,
+    outcome: OutboxOutcome,
+  ) => Promise<boolean>,
+): Promise<boolean> {
   let attempt = 0;
   for (;;) {
     try {
-      await finish(id, succeeded, error);
-      return;
+      return await finish(message, outcome);
     } catch (caught) {
       attempt += 1;
       if (attempt >= FINISH_MAX_ATTEMPTS) throw caught;
@@ -255,58 +268,96 @@ export async function finishWithRetry(
   }
 }
 
+export type OutboxDrainSummary = OutboxDispatchSummary & {
+  batches: number;
+  /** Outcomes not recorded because the claim was lost (lease reclaimed) or finish kept failing. */
+  unrecorded: number;
+  /** true when the run stopped on its batch/time budget with work possibly remaining. */
+  budgetExhausted: boolean;
+};
+
 /**
- * Claims and dispatches the next batch of outbox messages, then records the
- * outcome through the SECURITY DEFINER finish window. Runs on the platform
- * client end to end: claiming and finishing are the cross-tenant windows and
- * the delivery itself needs no tenant.
+ * Drains the outbox in bounded batches, then records each outcome through the
+ * fenced finish window. Runs on the platform client end to end: claiming and
+ * finishing are the cross-tenant windows and the delivery needs no tenant.
  *
- * The claimed/failed accounting is deliberately coarse. Whether a failure
- * retries or goes dead is decided inside finish_outbox_message (attempts vs the
- * 12-attempt ceiling); the cron only reports the counts it can know.
+ * Safe under duplicate or overlapping cron invocations (Vercel may deliver a
+ * cron more than once and does not retry a failed one): claims use SKIP LOCKED
+ * so two runs never hold the same row, finish is fenced by the claim token, and
+ * the provider Idempotency-Key is the stable outbox key, so a re-send after a
+ * lost finish is de-duplicated by the provider. The claim itself is
+ * tenant-fair (migration 032).
+ *
+ * Retryable vs terminal: an OutboxDispatchError carries `retryable`; anything
+ * else is treated as retryable. Terminal failures dead-letter immediately.
  */
 export async function dispatchOutboxMessages(options: {
   limit?: number;
+  maxBatches?: number;
+  budgetMs?: number;
   fetchImplementation?: typeof fetch;
-} = {}): Promise<OutboxDispatchSummary> {
+  now?: () => number;
+} = {}): Promise<OutboxDrainSummary> {
   const limit = Math.min(
     MAX_DISPATCH_BATCH,
     Math.max(1, Math.trunc(options.limit ?? 20)),
   );
-  const messages = await claimOutboxMessages(limit);
-  const summary: OutboxDispatchSummary = {
-    claimed: messages.length,
-    delivered: 0,
-    failed: 0,
-  };
+  const maxBatches = Math.min(
+    MAX_DRAIN_BATCHES,
+    Math.max(1, Math.trunc(options.maxBatches ?? MAX_DRAIN_BATCHES)),
+  );
+  const budgetMs = Math.max(1, options.budgetMs ?? DEFAULT_DRAIN_BUDGET_MS);
+  const now = options.now ?? Date.now;
+  const startedAt = now();
   const fetchImplementation = options.fetchImplementation ?? fetch;
 
-  for (const message of messages) {
-    try {
-      await dispatchOutboxMessage(message, fetchImplementation);
-    } catch (error) {
-      const code = error instanceof OutboxDispatchError
-        ? error.code
-        : 'dispatch_error';
+  const summary: OutboxDrainSummary = {
+    claimed: 0,
+    delivered: 0,
+    failed: 0,
+    batches: 0,
+    unrecorded: 0,
+    budgetExhausted: false,
+  };
+
+  while (summary.batches < maxBatches) {
+    if (now() - startedAt >= budgetMs) {
+      summary.budgetExhausted = true;
+      break;
+    }
+    const messages = await claimOutboxMessages(limit);
+    summary.batches += 1;
+    summary.claimed += messages.length;
+    if (!messages.length) return summary;
+
+    for (const message of messages) {
+      let outcome: OutboxOutcome;
       try {
-        await finishWithRetry(message.id, false, code, finishOutboxMessage);
-      } catch {
-        // The claim lease (5 minutes) will expire and the message becomes
-        // eligible again; nothing further to do here.
+        await dispatchOutboxMessage(message, fetchImplementation);
+        outcome = { succeeded: true };
+      } catch (error) {
+        outcome = error instanceof OutboxDispatchError
+          ? { succeeded: false, retryable: error.retryable, error: error.code }
+          : { succeeded: false, retryable: true, error: 'dispatch_error' };
       }
-      summary.failed += 1;
-      continue;
+
+      if (outcome.succeeded) summary.delivered += 1;
+      else summary.failed += 1;
+
+      try {
+        const recorded = await finishWithRetry(message, outcome, finishOutboxMessage);
+        if (!recorded) summary.unrecorded += 1;
+      } catch {
+        // Even after retrying, the finish could not be recorded. The row stays
+        // 'claimed' and is re-claimed after lease expiry (at-least-once); the
+        // provider Idempotency-Key prevents a duplicate customer email.
+        summary.unrecorded += 1;
+      }
     }
 
-    try {
-      await finishWithRetry(message.id, true, null, finishOutboxMessage);
-      summary.delivered += 1;
-    } catch {
-      // Even after retrying, the finish could not be recorded. The message
-      // stays 'claimed' and will be re-claimed after the lease expiry; at-least-
-      // once semantics remain. (Provider idempotency via the Idempotency-Key
-      // header is the backstop that prevents a duplicate send.)
-    }
+    if (messages.length < limit) return summary;
   }
+
+  if (summary.batches >= maxBatches) summary.budgetExhausted = true;
   return summary;
 }

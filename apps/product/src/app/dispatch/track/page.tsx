@@ -26,12 +26,22 @@ const CATEGORY_LABELS: Record<string, string> = {
   general: 'General',
 };
 
+/** Accepts either the bare tracking code or the full tracking link. */
+function trackingTokenFrom(input: string): string {
+  const trimmed = input.trim();
+  try {
+    return new URL(trimmed).searchParams.get('token') ?? '';
+  } catch {
+    return trimmed;
+  }
+}
+
 export default function DispatchTrackPage() {
   const [ticketInput, setTicketInput] = useState('');
   const [activeStep, setActiveStep] = useState<number | null>(null);
   const [ticketInfo, setTicketInfo] = useState<{
     ticketNumber: string; status: string; category: string; createdAt: string;
-    contactName?: string; contactPhone?: string; priority?: string; workSummary?: string;
+    priority?: string; workSummary?: string;
   } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,7 +49,7 @@ export default function DispatchTrackPage() {
 
   const refresh = useCallback(async (ticket: string) => {
     try {
-      const res = await fetch(`/api/dispatch/track?ticket=${encodeURIComponent(ticket)}`);
+      const res = await fetch(`/api/dispatch/track?token=${encodeURIComponent(ticket)}`);
       if (!res.ok) return;
       const body = await res.json();
       if (body.ok) {
@@ -49,8 +59,6 @@ export default function DispatchTrackPage() {
           status: body.status,
           category: body.category,
           createdAt: body.createdAt,
-          contactName: body.contactName,
-          contactPhone: body.contactPhone,
           priority: body.priority,
           workSummary: body.workSummary,
         });
@@ -62,8 +70,17 @@ export default function DispatchTrackPage() {
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, []);
 
-  async function lookup() {
-    const ticket = ticketInput.trim();
+  // The tracking link from the request confirmation opens straight onto the
+  // ticket. Read once on mount; the token never leaves this page's requests.
+  const initialToken = useRef<string | null>(null);
+  useEffect(() => {
+    if (initialToken.current !== null) return;
+    initialToken.current = new URLSearchParams(window.location.search).get('token') ?? '';
+    if (initialToken.current) void lookupRef.current(initialToken.current);
+  }, []);
+
+  async function lookup(input: string = ticketInput) {
+    const ticket = trackingTokenFrom(input);
     if (!ticket) return;
     setLoading(true);
     setError(null);
@@ -72,7 +89,7 @@ export default function DispatchTrackPage() {
     if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
 
     try {
-      const res = await fetch(`/api/dispatch/track?ticket=${encodeURIComponent(ticket)}`);
+      const res = await fetch(`/api/dispatch/track?token=${encodeURIComponent(ticket)}`);
       const body = await res.json();
       if (!res.ok || !body.ok) {
         setError(body.error ?? 'Ticket not found.');
@@ -85,8 +102,6 @@ export default function DispatchTrackPage() {
         status: body.status,
         category: body.category,
         createdAt: body.createdAt,
-        contactName: body.contactName,
-        contactPhone: body.contactPhone,
         priority: body.priority,
         workSummary: body.workSummary,
       });
@@ -98,6 +113,9 @@ export default function DispatchTrackPage() {
     }
   }
 
+  const lookupRef = useRef(lookup);
+  useEffect(() => { lookupRef.current = lookup; });
+
   return (
     <section className="dispatch-tracker">
       <h1>Live Job Status</h1>
@@ -105,8 +123,8 @@ export default function DispatchTrackPage() {
       <div className="dispatch-tracker-form">
         <input
           type="text"
-          placeholder="DRQ-000000"
-          aria-label="Job ticket number"
+          placeholder="Paste your tracking link or code"
+          aria-label="Tracking link or code"
           value={ticketInput}
           onChange={(e) => setTicketInput(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && lookup()}
@@ -114,7 +132,7 @@ export default function DispatchTrackPage() {
         <button
           type="button"
           className="dispatch-btn dispatch-btn-primary"
-          onClick={lookup}
+          onClick={() => lookup()}
           disabled={loading}
         >
           {loading ? 'Looking...' : 'Look Up'}
@@ -166,13 +184,6 @@ export default function DispatchTrackPage() {
               <p style={{ fontSize: '13px', color: '#94a3b8', margin: '12px 0 0', lineHeight: 1.5 }}>
                 {ticketInfo.workSummary}
               </p>
-            )}
-            {(ticketInfo.contactName || ticketInfo.contactPhone) && (
-              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '8px' }}>
-                {ticketInfo.contactName && <span>{ticketInfo.contactName}</span>}
-                {ticketInfo.contactName && ticketInfo.contactPhone && <span> &middot; </span>}
-                {ticketInfo.contactPhone && <span>{ticketInfo.contactPhone}</span>}
-              </div>
             )}
           </div>
 

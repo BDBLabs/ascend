@@ -403,49 +403,109 @@ BEGIN
   RESET ROLE;
 
   UPDATE transactional_outbox
-     SET status = 'pending', attempts = 0, next_attempt_at = now(), claimed_until = NULL
+     SET status = 'pending', attempts = 0, next_attempt_at = now(), claimed_until = NULL, claim_token = NULL
    WHERE key IN ('alpha-msg', 'beta-msg');
 END;
 $$;
 
 -- --------------------------------------------------------------------------
--- 7. Outbox lease must actually re-deliver a crashed claim (Phase 4 lease)
+-- 7. Outbox lease: a crashed claim is re-delivered, fenced, and fair
 -- --------------------------------------------------------------------------
--- A claim that crashes before finish leaves status='claimed'. The claim
--- predicate selects status IN ('pending','failed') only, so a crashed row with
--- an expired lease is never re-selected. This assertion documents the current
--- defect rather than papering over it: the expired-lease row is NOT rescued,
--- and only the still-pending row is claimable.
+-- A claim that crashes before finish leaves status='claimed'. Once its lease
+-- expires the message must be claimable again, under a NEW claim token, so the
+-- crashed worker's late finish cannot overwrite the new owner's outcome. A
+-- lease that expires on the final attempt goes dead instead of being stranded.
 DO $$
 DECLARE
+  stale_token uuid;
+  fresh_token uuid;
+  alpha_id uuid;
   claimed_keys text;
-  crashed_count bigint;
+  alpha_status text;
+  final_status text;
 BEGIN
-  -- Simulate a crashed claim on alpha's message: claimed, lease long expired.
+  SET LOCAL ROLE platform_runtime;
+  SELECT claim_token INTO stale_token
+    FROM claim_ready_outbox_messages(50) AS m WHERE m.key = 'alpha-msg';
+  RESET ROLE;
+  IF stale_token IS NULL THEN
+    RAISE EXCEPTION 'alpha-msg was not claimable at the start of the lease test.';
+  END IF;
+
+  -- Simulate the crash: the lease is long expired, finish never ran.
   UPDATE transactional_outbox
-     SET status = 'claimed', claimed_until = now() - interval '1 hour'
-   WHERE topic = 'estimate_delivery' AND key = 'alpha-msg';
+     SET claimed_until = now() - interval '1 hour'
+   WHERE key = 'alpha-msg'
+  RETURNING id INTO alpha_id;
 
   SET LOCAL ROLE platform_runtime;
-  SELECT string_agg(m.key, ',') INTO claimed_keys
+  SELECT string_agg(m.key, ',' ORDER BY m.key), max(m.claim_token::text) FILTER (WHERE m.key = 'alpha-msg')
+    INTO claimed_keys, fresh_token
     FROM claim_ready_outbox_messages(50) AS m;
+
+  IF claimed_keys IS NULL OR position('alpha-msg' in claimed_keys) = 0 THEN
+    RAISE EXCEPTION 'A crashed claim with an expired lease was not re-claimed.';
+  END IF;
+  IF fresh_token IS NULL OR fresh_token = stale_token THEN
+    RAISE EXCEPTION 'A re-claim did not issue a fresh claim token.';
+  END IF;
+
+  -- The crashed worker wakes up and reports: it must be fenced off.
+  IF finish_outbox_message(alpha_id, stale_token, true, true, NULL) THEN
+    RAISE EXCEPTION 'A stale claim token finished a re-claimed message.';
+  END IF;
   RESET ROLE;
 
-  SELECT count(*) INTO crashed_count
-    FROM transactional_outbox
-   WHERE status = 'claimed' AND claimed_until < now();
-
-  IF crashed_count > 0 THEN
-    RAISE NOTICE 'LEASE DEFECT CONFIRMED: % crashed claimed message(s) with an expired lease are not re-claimable (claim predicate selects status IN (''pending'',''failed'') only; claimed_until is never consulted).', crashed_count;
+  SELECT status INTO alpha_status FROM transactional_outbox WHERE key = 'alpha-msg';
+  IF alpha_status <> 'claimed' THEN
+    RAISE EXCEPTION 'A stale finish changed the re-claimed message (status %).', alpha_status;
   END IF;
 
-  IF claimed_keys IS NOT NULL AND position('alpha-msg' in claimed_keys) > 0 THEN
-    RAISE EXCEPTION 'Crashed claimed message was re-claimed after its lease expired; lease handling is actually live.';
+  -- Final-attempt lease expiry dead-letters.
+  UPDATE transactional_outbox
+     SET attempts = 12, claimed_until = now() - interval '1 minute'
+   WHERE key = 'alpha-msg';
+  SET LOCAL ROLE platform_runtime;
+  PERFORM count(*) FROM claim_ready_outbox_messages(50);
+  RESET ROLE;
+  SELECT status INTO final_status FROM transactional_outbox WHERE key = 'alpha-msg';
+  IF final_status <> 'dead' THEN
+    RAISE EXCEPTION 'A lease that expired on the final attempt was left %.', final_status;
   END IF;
 
-  IF claimed_keys IS NULL OR position('beta-msg' in claimed_keys) = 0 THEN
-    RAISE EXCEPTION 'Still-pending message was not claimable; drain regression.';
+  UPDATE transactional_outbox
+     SET status = 'pending', attempts = 0, next_attempt_at = now(), claimed_until = NULL,
+         claim_token = NULL, last_error = NULL
+   WHERE key IN ('alpha-msg', 'beta-msg');
+END;
+$$;
+
+-- Fairness: a tenant with a deep backlog cannot starve another tenant. Alpha
+-- gets 30 older messages; a batch of 5 must still include beta's one.
+DO $$
+DECLARE
+  claimed_orgs int;
+BEGIN
+  PERFORM set_application_context('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::uuid, NULL, gen_random_uuid());
+  SET LOCAL ROLE contractor_app;
+  INSERT INTO transactional_outbox (organization_id, topic, key, payload, next_attempt_at)
+  SELECT 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'estimate_delivery', 'alpha-backlog-' || n,
+         '{}'::jsonb, now() - interval '1 hour'
+  FROM generate_series(1, 30) AS n;
+  RESET ROLE;
+
+  SET LOCAL ROLE platform_runtime;
+  SELECT count(DISTINCT organization_id) INTO claimed_orgs FROM claim_ready_outbox_messages(5);
+  RESET ROLE;
+
+  IF claimed_orgs <> 2 THEN
+    RAISE EXCEPTION 'Outbox claim is not tenant-fair: a 5-message batch covered % tenant(s).', claimed_orgs;
   END IF;
+
+  DELETE FROM transactional_outbox WHERE key LIKE 'alpha-backlog-%';
+  UPDATE transactional_outbox
+     SET status = 'pending', attempts = 0, next_attempt_at = now(), claimed_until = NULL, claim_token = NULL
+   WHERE key IN ('alpha-msg', 'beta-msg');
 END;
 $$;
 

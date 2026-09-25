@@ -17,8 +17,8 @@ INSERT INTO organizations (id, slug, display_name, status) VALUES
 RESET ROLE;
 
 -- --------------------------------------------------------------------------
--- 1. Identity: the webhook windows are the only way platform_runtime reaches
---    identity rows, and they resolve the Clerk org onto the provisioned tenant
+-- 1. Identity: the legacy Clerk windows are owner-only, and they resolve the
+--    Clerk org onto the provisioned tenant
 -- --------------------------------------------------------------------------
 DO $$
 DECLARE
@@ -30,8 +30,20 @@ BEGIN
   -- The control plane links a provisioned tenant to its Clerk organization.
   PERFORM link_organization_clerk('aaaaaa11-0000-0000-0000-000000000001'::uuid, 'org_clerk_alpha');
 
-  -- platform_runtime has no tenant context here; the windows must not need one.
+  -- The legacy Clerk sync windows have no application caller since native
+  -- auth (034 grants them to no role). platform_runtime must be refused; the
+  -- windows' own behaviour is still exercised through the owner below.
   SET LOCAL ROLE platform_runtime;
+  BEGIN
+    PERFORM resolve_organization_by_clerk_id('org_clerk_alpha');
+    raised := false;
+  EXCEPTION WHEN insufficient_privilege THEN
+    raised := true;
+  END;
+  RESET ROLE;
+  IF NOT raised THEN
+    RAISE EXCEPTION 'platform_runtime can still call the legacy Clerk windows.';
+  END IF;
 
   resolved := resolve_organization_by_clerk_id('org_clerk_alpha');
   IF resolved <> 'aaaaaa11-0000-0000-0000-000000000001'::uuid THEN
@@ -56,8 +68,6 @@ BEGIN
   IF NOT raised THEN
     RAISE EXCEPTION 'A membership was created for an unprovisioned Clerk organization.';
   END IF;
-
-  RESET ROLE;
 END;
 $$;
 
@@ -173,6 +183,7 @@ DECLARE
   claimed_org uuid;
   claimed_topic text;
   claimed_payload jsonb;
+  claimed_token uuid;
 BEGIN
   PERFORM set_application_context('aaaaaa11-0000-0000-0000-000000000001'::uuid, NULL, gen_random_uuid());
   SET LOCAL ROLE contractor_app;
@@ -184,8 +195,8 @@ BEGIN
   RESET ROLE;
 
   SET LOCAL ROLE platform_runtime;
-  SELECT id, organization_id, topic, payload
-    INTO claimed_id, claimed_org, claimed_topic, claimed_payload
+  SELECT id, organization_id, topic, payload, claim_token
+    INTO claimed_id, claimed_org, claimed_topic, claimed_payload, claimed_token
   FROM claim_ready_outbox_messages(10)
   LIMIT 1;
 
@@ -199,7 +210,19 @@ BEGIN
     RAISE EXCEPTION 'The outbox returned the wrong topic.';
   END IF;
 
-  PERFORM finish_outbox_message(claimed_id, true, NULL);
+  IF claimed_token IS NULL THEN
+    RAISE EXCEPTION 'A claim did not issue a claim token.';
+  END IF;
+  -- A finish presenting the wrong token is fenced off and records nothing.
+  IF finish_outbox_message(claimed_id, gen_random_uuid(), true, true, NULL) THEN
+    RAISE EXCEPTION 'finish_outbox_message accepted a foreign claim token.';
+  END IF;
+  IF NOT finish_outbox_message(claimed_id, claimed_token, true, true, NULL) THEN
+    RAISE EXCEPTION 'finish_outbox_message rejected the owning claim token.';
+  END IF;
+  IF finish_outbox_message(claimed_id, claimed_token, false, true, 'late duplicate') THEN
+    RAISE EXCEPTION 'A finished message accepted a second outcome.';
+  END IF;
 
   RESET ROLE;
   PERFORM set_application_context('aaaaaa11-0000-0000-0000-000000000001'::uuid, NULL, gen_random_uuid());
@@ -221,6 +244,7 @@ DO $$
 DECLARE
   message_id uuid;
   claimed_id uuid;
+  claimed_token uuid;
   next_at timestamptz;
   i int;
 BEGIN
@@ -233,11 +257,11 @@ BEGIN
 
   SET LOCAL ROLE platform_runtime;
   FOR i IN 1..12 LOOP
-    SELECT id INTO claimed_id FROM claim_ready_outbox_messages(10) LIMIT 1;
+    SELECT id, claim_token INTO claimed_id, claimed_token FROM claim_ready_outbox_messages(10) LIMIT 1;
     IF claimed_id IS NULL THEN
       RAISE EXCEPTION 'The outbox refused a retryable message.';
     END IF;
-    PERFORM finish_outbox_message(claimed_id, false, repeat('smtp error', 100));
+    PERFORM finish_outbox_message(claimed_id, claimed_token, false, true, repeat('smtp error', 100));
 
     RESET ROLE;
     PERFORM set_application_context('aaaaaa11-0000-0000-0000-000000000001'::uuid, NULL, gen_random_uuid());
@@ -263,6 +287,40 @@ BEGIN
   END IF;
   IF (SELECT char_length(last_error) FROM transactional_outbox WHERE id = message_id) > 500 THEN
     RAISE EXCEPTION 'A delivery error was stored unbounded.';
+  END IF;
+  RESET ROLE;
+END;
+$$;
+
+-- --------------------------------------------------------------------------
+-- 6b. Terminal provider errors dead-letter immediately (no retry storm)
+-- --------------------------------------------------------------------------
+DO $$
+DECLARE
+  message_id uuid;
+  claimed_id uuid;
+  claimed_token uuid;
+BEGIN
+  PERFORM set_application_context('aaaaaa11-0000-0000-0000-000000000001'::uuid, NULL, gen_random_uuid());
+  SET LOCAL ROLE contractor_app;
+  INSERT INTO transactional_outbox (topic, payload)
+  VALUES ('estimate.deliver', jsonb_build_object('n', 2))
+  RETURNING id INTO message_id;
+  RESET ROLE;
+
+  SET LOCAL ROLE platform_runtime;
+  SELECT id, claim_token INTO claimed_id, claimed_token
+    FROM claim_ready_outbox_messages(10) WHERE id = message_id;
+  IF claimed_id IS NULL THEN
+    RAISE EXCEPTION 'The terminal-error message was not claimable.';
+  END IF;
+  PERFORM finish_outbox_message(claimed_id, claimed_token, false, false, 'provider_rejected');
+  RESET ROLE;
+
+  PERFORM set_application_context('aaaaaa11-0000-0000-0000-000000000001'::uuid, NULL, gen_random_uuid());
+  SET LOCAL ROLE contractor_app;
+  IF (SELECT status FROM transactional_outbox WHERE id = message_id) <> 'dead' THEN
+    RAISE EXCEPTION 'A terminal provider error was scheduled for retry.';
   END IF;
   RESET ROLE;
 END;

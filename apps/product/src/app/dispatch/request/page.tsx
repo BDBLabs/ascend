@@ -22,7 +22,7 @@ const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic'];
 
 export default function DispatchRequestPage() {
   const [loading, setLoading] = useState(false);
-  const [ticket, setTicket] = useState<string | null>(null);
+  const [ticket, setTicket] = useState<{ number: string; trackingToken: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [category, setCategory] = useState('');
@@ -81,17 +81,19 @@ export default function DispatchRequestPage() {
         return;
       }
 
-      // Step 2: Upload photos if any
-      if (photos.length > 0 && body.ticketId) {
+      // Step 2: Upload photos if any. The tracking token proves ownership of
+      // the ticket; it is the only credential the portal ever issues.
+      if (photos.length > 0 && body.trackingToken) {
         const formData = new FormData();
+        formData.append('token', body.trackingToken);
         photos.forEach((p) => formData.append('photos', p));
-        await fetch(`/api/dispatch/requests/${body.ticketId}/photos`, {
+        await fetch('/api/dispatch/photos', {
           method: 'POST',
           body: formData,
         });
       }
 
-      setTicket(body.ticketNumber);
+      setTicket({ number: body.ticketNumber, trackingToken: body.trackingToken });
     } catch {
       setError('Could not reach dispatch. Please try again.');
     } finally {
@@ -105,14 +107,16 @@ export default function DispatchRequestPage() {
         <div className="dispatch-badge" style={{ marginBottom: '24px' }}>Request Received</div>
         <h1>Your Ticket</h1>
         <p style={{ color: '#f59e0b', fontFamily: 'ui-monospace, monospace', fontSize: '2rem', fontWeight: 900, margin: '16px 0' }}>
-          {ticket}
+          {ticket.number}
         </p>
         <p className="subdeck" style={{ margin: '0 auto 32px' }}>
-          Save this ticket number. Our dispatch team will review your request
-          and send a qualified technician with a firm bid.
+          Bookmark the tracking link below &mdash; it is the only way to check
+          this request&apos;s progress, and it is shown only once. Our dispatch
+          team will review your request and send a qualified technician with a
+          firm bid.
         </p>
         <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
-          <a href={`/dispatch/track?ticket=${ticket}`} className="dispatch-btn dispatch-btn-primary">
+          <a href={`/dispatch/track?token=${encodeURIComponent(ticket.trackingToken)}`} className="dispatch-btn dispatch-btn-primary">
             Track This Request
           </a>
           <a href="/dispatch/request" className="dispatch-btn dispatch-btn-secondary">

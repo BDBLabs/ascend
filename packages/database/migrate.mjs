@@ -50,6 +50,20 @@ function describeTarget(url) {
   }
 }
 
+// On a fresh database the application roles do not exist until 001 creates
+// them, so the grant is applied only to roles that exist and is re-run after
+// the pending migrations are applied.
+async function grantLedgerRead() {
+  const { rows } = await client.query(
+    `SELECT rolname FROM pg_roles
+     WHERE rolname IN ('contractor_app', 'control_app', 'platform_runtime')`,
+  );
+  if (!rows.length) return;
+  await client.query(
+    `GRANT SELECT ON _migrations TO ${rows.map((row) => row.rolname).join(', ')}`,
+  );
+}
+
 const client = new pg.Client({
   connectionString,
   ssl: /localhost|127\.0\.0\.1/.test(connectionString) ? false : { rejectUnauthorized: true },
@@ -70,9 +84,7 @@ try {
   // is created by this runner, not by a migration, so no migration grants it --
   // the read has to be granted here. It is safe to run on every invocation, which
   // is what lets branches migrated before this line pick the grant up next run.
-  await client.query(
-    'GRANT SELECT ON _migrations TO contractor_app, control_app, platform_runtime',
-  );
+  await grantLedgerRead();
 
   const ledger = await client.query('SELECT name, checksum FROM _migrations');
   const applied = new Map(ledger.rows.map((row) => [row.name, row.checksum]));
@@ -141,6 +153,7 @@ try {
     }
   }
 
+  if (pending.length) await grantLedgerRead();
   if (!pending.length) process.stdout.write('up to date\n');
 } catch (error) {
   // Operator-facing tool: a refusal is an expected outcome and should read as
