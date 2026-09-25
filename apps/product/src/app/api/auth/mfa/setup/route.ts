@@ -21,7 +21,10 @@ export async function GET(request: NextRequest) {
 
   const result = await initiateMfaEnrollment(staff.platformUserId, staff.email);
   if (!result.ok) {
-    return privateJson({ error: result.reason }, 400);
+    // An authenticator is already active for this login (MFA in another
+    // organization). It is never replaced here: confirm with a code from it
+    // via POST /api/auth/mfa/enroll.
+    return privateJson({ error: 'already-enrolled', next: 'confirm-existing-authenticator' }, 409);
   }
 
   return privateJson({ ok: true, secret: result.value.secret, uri: result.value.uri });

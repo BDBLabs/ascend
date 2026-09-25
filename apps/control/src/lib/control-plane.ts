@@ -15,6 +15,7 @@ import {
   provision,
   type ControlStatement,
 } from '@/lib/control-db';
+import { hasVerificationRecord, verificationRecord } from '@/lib/dns-verification';
 
 /**
  * The provisioning control plane. Each operation is a single transaction:
@@ -113,7 +114,24 @@ function priceBookStatements(organizationId: string, priceBook: PriceBookInput):
  * control_app, then — under the org context — counters, the approved config-v1
  * document, and (if given) a price book published as release v1.
  */
-export async function provisionTenant(raw: unknown): Promise<ProvisionedTenant> {
+/**
+ * The audit row for an operator action, written in the SAME transaction as the
+ * action (P5): an action without its audit record cannot commit.
+ */
+function auditStatement(
+  actor: string,
+  action: string,
+  organizationId: string | null,
+  detail: Record<string, unknown> = {},
+): ControlStatement {
+  return {
+    role: 'control_app',
+    text: 'SELECT control_audit($1::text, $2::text, $3::uuid, $4::jsonb)',
+    values: [actor, action, organizationId, JSON.stringify(detail)],
+  };
+}
+
+export async function provisionTenant(raw: unknown, actor: string): Promise<ProvisionedTenant> {
   const input = validateProvisionTenantInput(raw);
   await assertUniqueness(input.slug, input.canonicalHostname);
 
@@ -167,6 +185,10 @@ export async function provisionTenant(raw: unknown): Promise<ProvisionedTenant> 
       values: [organizationId, JSON.stringify(config)],
     },
     ...(input.priceBook ? priceBookStatements(organizationId, input.priceBook) : []),
+    auditStatement(actor, 'tenant.provision', organizationId, {
+      slug: input.slug,
+      hostname: input.canonicalHostname,
+    }),
   ];
 
   const results = await provision(statements);
@@ -295,6 +317,7 @@ export type DomainRecord = {
 export async function addCustomDomain(
   organizationId: string,
   hostname: string,
+  actor: string,
 ): Promise<DomainRecord> {
   // Validate hostname format
   const HOSTNAME_PATTERN = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
@@ -316,12 +339,17 @@ export async function addCustomDomain(
     throw new Error('cannot add *.usejbox.com subdomains as custom domains');
   }
 
-  const rows = await controlQuery(
-    `INSERT INTO organization_domains (organization_id, hostname, is_canonical, verified)
-     VALUES ($1, $2, false, false)
-     RETURNING id, organization_id, hostname, is_canonical, verified, verified_at, created_at`,
-    [organizationId, hostname],
-  );
+  const [rows] = await provision([
+    {
+      role: 'control_app',
+      text: `INSERT INTO organization_domains
+               (organization_id, hostname, is_canonical, verified, verification_token)
+             VALUES ($1, $2, false, false, replace(gen_random_uuid()::text, '-', ''))
+             RETURNING id, organization_id, hostname, is_canonical, verified, verified_at, created_at`,
+      values: [organizationId, hostname],
+    },
+    auditStatement(actor, 'domain.add', organizationId, { hostname }),
+  ]);
 
   if (!rows.length) {
     throw new Error('failed to add domain');
@@ -346,6 +374,7 @@ export async function addCustomDomain(
 export async function removeCustomDomain(
   organizationId: string,
   domainId: string,
+  actor: string,
 ): Promise<void> {
   // Check if this is the canonical domain
   const domainRows = await controlQuery(
@@ -362,10 +391,14 @@ export async function removeCustomDomain(
     throw new Error('cannot remove the canonical domain');
   }
 
-  await controlQuery(
-    'DELETE FROM organization_domains WHERE id = $1 AND organization_id = $2',
-    [domainId, organizationId],
-  );
+  await provision([
+    {
+      role: 'control_app',
+      text: 'DELETE FROM organization_domains WHERE id = $1 AND organization_id = $2 AND NOT is_canonical',
+      values: [domainId, organizationId],
+    },
+    auditStatement(actor, 'domain.remove', organizationId, { domainId }),
+  ]);
 }
 
 /**
@@ -394,68 +427,62 @@ export async function listOrganizationDomains(
 }
 
 /**
- * Generates a DNS TXT record challenge for domain verification. Returns the
- * record name and value that the domain owner must add to their DNS.
+ * The DNS TXT record that proves ownership of a custom domain. The token is
+ * stored per domain (migration 036) -- the previous implementation generated a
+ * fresh one per request and never stored it, so nothing could be checked.
  */
 export async function generateDomainChallenge(
   organizationId: string,
   domainId: string,
 ): Promise<{ hostname: string; recordName: string; recordValue: string }> {
   const rows = await controlQuery(
-    `SELECT id, hostname, verified FROM organization_domains
-     WHERE id = $1 AND organization_id = $2`,
+    `UPDATE organization_domains
+     SET verification_token = coalesce(verification_token, replace(gen_random_uuid()::text, '-', ''))
+     WHERE id = $1 AND organization_id = $2 AND NOT is_canonical
+     RETURNING hostname, verification_token, verified`,
     [domainId, organizationId],
   );
+  if (!rows.length) throw new Error('domain not found');
+  if (rows[0].verified) throw new Error('domain is already verified');
 
-  if (!rows.length) {
-    throw new Error('domain not found');
-  }
-
-  if (rows[0].verified) {
-    throw new Error('domain is already verified');
-  }
-
-  const hostname = String(rows[0].hostname);
-  const challengeToken = randomUUID().replace(/-/g, '').slice(0, 32);
-
-  return {
-    hostname,
-    recordName: `_jbox-verify.${hostname}`,
-    recordValue: `jbox-verify=${challengeToken}`,
-  };
+  const record = verificationRecord(String(rows[0].hostname), String(rows[0].verification_token));
+  return { hostname: String(rows[0].hostname), recordName: record.name, recordValue: record.value };
 }
 
 /**
- * Verifies a domain by checking for the expected DNS TXT record. If the
- * record is found, the domain is marked as verified.
+ * Verifies a custom domain: the DNS TXT record must carry the stored token.
+ * Only then is the hostname marked verified (and so starts resolving to the
+ * tenant). The operator is audited.
  */
 export async function verifyCustomDomain(
   organizationId: string,
   domainId: string,
+  actor: string,
+  resolver?: (name: string) => Promise<string[][]>,
 ): Promise<boolean> {
   const rows = await controlQuery(
-    `SELECT id, hostname, verified FROM organization_domains
-     WHERE id = $1 AND organization_id = $2`,
+    `SELECT hostname, verified, verification_token FROM organization_domains
+     WHERE id = $1 AND organization_id = $2 AND NOT is_canonical`,
     [domainId, organizationId],
   );
+  if (!rows.length) throw new Error('domain not found');
+  if (rows[0].verified) return true;
 
-  if (!rows.length) {
-    throw new Error('domain not found');
+  const hostname = String(rows[0].hostname);
+  const token = rows[0].verification_token ? String(rows[0].verification_token) : '';
+  if (!token || !(await hasVerificationRecord(hostname, token, resolver))) {
+    throw new Error(`verification record not found: publish ${verificationRecord(hostname, token || '<request a challenge>').name}`);
   }
 
-  if (rows[0].verified) {
-    return true;
-  }
-
-  // In a real implementation, this would perform a DNS lookup for the TXT record.
-  // For now, we'll mark it as verified directly (operator-driven flow).
-  await controlQuery(
-    `UPDATE organization_domains
-     SET verified = true, verified_at = now()
-     WHERE id = $1 AND organization_id = $2`,
-    [domainId, organizationId],
-  );
-
+  await provision([
+    {
+      role: 'control_app',
+      text: `UPDATE organization_domains SET verified = true, verified_at = now()
+             WHERE id = $1 AND organization_id = $2 AND verification_token = $3`,
+      values: [domainId, organizationId, token],
+    },
+    auditStatement(actor, 'domain.verify', organizationId, { hostname, method: 'dns-txt' }),
+  ]);
   return true;
 }
 
@@ -473,14 +500,20 @@ export async function checkSlugAvailability(slug: string): Promise<{ available: 
 }
 
 /** Marks the canonical hostname verified, after the operator has added DNS. */
-export async function verifyCanonicalDomain(id: string): Promise<void> {
-  const rows = await controlQuery(
-    `UPDATE organization_domains
-     SET verified = true, verified_at = now()
-     WHERE organization_id = $1 AND is_canonical
-     RETURNING id`,
-    [id],
-  );
+export async function verifyCanonicalDomain(id: string, actor: string): Promise<void> {
+  // The canonical hostname is a platform subdomain the platform itself serves,
+  // so this is an operator attestation, not a DNS proof -- and it is audited.
+  const [rows] = await provision([
+    {
+      role: 'control_app',
+      text: `UPDATE organization_domains
+             SET verified = true, verified_at = now()
+             WHERE organization_id = $1 AND is_canonical
+             RETURNING id`,
+      values: [id],
+    },
+    auditStatement(actor, 'domain.verify_canonical', id),
+  ]);
   if (!rows.length) {
     throw new Error(`organization ${id} has no canonical hostname to verify`);
   }
@@ -491,7 +524,7 @@ export async function verifyCanonicalDomain(id: string): Promise<void> {
  * verified and the config approved; if a price book was provisioned, it must
  * have a published release (004 forbids estimates against unpublished pricing).
  */
-export async function activateOrganization(id: string): Promise<void> {
+export async function activateOrganization(id: string, actor: string): Promise<void> {
   const readiness = await getOrganizationReadiness(id);
   if (!readiness) throw new Error(`organization not found: ${id}`);
 
@@ -506,11 +539,15 @@ export async function activateOrganization(id: string): Promise<void> {
   }
   if (gates.length) throw new Error(`cannot activate ${id}: ${gates.join('; ')}`);
 
-  const rows = await controlQuery(
-    `UPDATE organizations SET status = 'active'
-     WHERE id = $1 AND status = 'provisioning'
-     RETURNING id`,
-    [id],
-  );
+  const [rows] = await provision([
+    {
+      role: 'control_app',
+      text: `UPDATE organizations SET status = 'active'
+             WHERE id = $1 AND status = 'provisioning'
+             RETURNING id`,
+      values: [id],
+    },
+    auditStatement(actor, 'tenant.activate', id),
+  ]);
   if (!rows.length) throw new Error(`organization ${id} could not be activated`);
 }

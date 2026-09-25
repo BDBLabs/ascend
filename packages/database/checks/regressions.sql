@@ -153,6 +153,68 @@ BEGIN
 END;
 $$;
 
+-- --------------------------------------------------------------------------
+-- 3. Custom domains: tenant-scoped windows, stored-token verification (036)
+-- --------------------------------------------------------------------------
+DO $$
+DECLARE
+  added record;
+  challenge record;
+  raised boolean := false;
+BEGIN
+  PERFORM set_application_context('c0c0c0c0-0000-0000-0000-00000000000a'::uuid, NULL, gen_random_uuid());
+  SET LOCAL ROLE contractor_app;
+  SELECT * INTO added FROM tenant_domain_add('Regress-Alpha.example');
+  IF added.verification_token IS NULL OR added.hostname <> 'regress-alpha.example' THEN
+    RAISE EXCEPTION 'A new custom domain carried no verification token.';
+  END IF;
+  IF resolve_verified_organization('regress-alpha.example') IS NOT NULL THEN
+    RAISE EXCEPTION 'An unverified hostname resolved to a tenant.';
+  END IF;
+  IF tenant_domain_mark_verified(added.id, repeat('0', 32)) THEN
+    RAISE EXCEPTION 'A domain verified with the wrong token.';
+  END IF;
+  BEGIN
+    UPDATE organization_domains SET verified = true WHERE id = added.id;
+    raised := false;
+  EXCEPTION WHEN insufficient_privilege THEN
+    raised := true;
+  END;
+  IF NOT raised THEN
+    RAISE EXCEPTION 'contractor_app can still update organization_domains directly.';
+  END IF;
+  BEGIN
+    PERFORM * FROM tenant_domain_add('beta.usejbox.com');
+    raised := false;
+  EXCEPTION WHEN invalid_parameter_value THEN
+    raised := true;
+  END;
+  IF NOT raised THEN RAISE EXCEPTION 'A tenant claimed a platform hostname.'; END IF;
+  RESET ROLE;
+
+  -- Tenant beta can neither see, verify nor remove alpha's domain.
+  PERFORM set_application_context('c0c0c0c0-0000-0000-0000-00000000000b'::uuid, NULL, gen_random_uuid());
+  SET LOCAL ROLE contractor_app;
+  SELECT * INTO challenge FROM tenant_domain_challenge(added.id);
+  IF challenge.hostname IS NOT NULL THEN RAISE EXCEPTION 'Tenant beta read alpha''s domain challenge.'; END IF;
+  IF tenant_domain_mark_verified(added.id, added.verification_token) THEN
+    RAISE EXCEPTION 'Tenant beta verified alpha''s domain.';
+  END IF;
+  IF tenant_domain_remove(added.id) THEN RAISE EXCEPTION 'Tenant beta removed alpha''s domain.'; END IF;
+  RESET ROLE;
+
+  PERFORM set_application_context('c0c0c0c0-0000-0000-0000-00000000000a'::uuid, NULL, gen_random_uuid());
+  SET LOCAL ROLE contractor_app;
+  IF NOT tenant_domain_mark_verified(added.id, added.verification_token) THEN
+    RAISE EXCEPTION 'The owning tenant could not verify with the stored token.';
+  END IF;
+  IF resolve_verified_organization('regress-alpha.example') <> 'c0c0c0c0-0000-0000-0000-00000000000a'::uuid THEN
+    RAISE EXCEPTION 'A verified custom domain did not resolve to its tenant.';
+  END IF;
+  RESET ROLE;
+END;
+$$;
+
 ROLLBACK;
 
 \echo 'regressions.sql: all checks passed'

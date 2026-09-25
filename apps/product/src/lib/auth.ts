@@ -15,7 +15,7 @@ import type { ApplicationRole } from '@contractor-platform/domain';
 import { capabilitiesForRole } from '@contractor-platform/domain';
 import { platformDb } from '@/lib/db';
 import { fieldAuthSecret, fieldAuthSecrets, fieldAuthTokenMinutes } from '@/lib/identity-environment';
-import { verifyTotpToken, generateTotpSecret, getTotpUri, type LoginResult, type AuthenticatedStaff } from '@/lib/mfa';
+import { verifyTotpStep, generateTotpSecret, getTotpUri, type LoginResult, type AuthenticatedStaff } from '@/lib/mfa';
 
 const scrypt = promisify(scryptCallback) as (
   password: string,
@@ -32,8 +32,10 @@ const scrypt = promisify(scryptCallback) as (
  *   - platform_users.password_hash is the credential (scrypt, not bcrypt: the
  *     same KDF discipline, built into Node, no native dependency).
  *   - field_sessions is the active-session ledger. A token is valid only while
- *     its jti row exists, is not revoked, and has not expired; logout revokes
- *     it; a role/status change revokes every session for the user.
+ *     its jti row exists, is not revoked or expired, and still carries the
+ *     user's and membership's current auth versions (migration 035); logout
+ *     revokes it; any credential/status/role/MFA change revokes the affected
+ *     sessions in the same transaction.
  *   - Every verification re-reads the live membership, so a role change takes
  *     effect on the next request even before explicit revocation (TrueTraining's
  *     /me re-reads the DB for the same reason).
@@ -48,38 +50,85 @@ export const FIELD_SESSION_COOKIE = 'field_session';
 export const FIELD_TOKEN_ISSUER = 'usejbox:field';
 export const FIELD_TOKEN_AUDIENCE = 'usejbox:field';
 
-const MIN_PASSWORD_LENGTH = 8;
+// Password policy (P2.3). New passwords: 12-256 characters, not the email or
+// its local part, not a well-known password. Any submitted password over
+// MAX_PASSWORD_INPUT_LENGTH is refused before hashing, so an oversized input
+// cannot be used to burn CPU in scrypt.
+export const MIN_PASSWORD_LENGTH = 12;
+export const MAX_PASSWORD_LENGTH = 256;
+export const MAX_PASSWORD_INPUT_LENGTH = 1024;
+const COMMON_PASSWORDS = new Set([
+  'password1234', 'passwordpassword', '123456789012', 'qwertyuiopas', 'letmeinletmein',
+  'iloveyou1234', 'welcome12345', 'administrator', 'changeme1234', 'password12345',
+]);
+
+export type PasswordPolicyResult = { ok: true } | { ok: false; reason: string };
+
+export function checkNewPassword(password: string, email?: string): PasswordPolicyResult {
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    return { ok: false, reason: `Password must be at least ${MIN_PASSWORD_LENGTH} characters long.` };
+  }
+  if (password.length > MAX_PASSWORD_LENGTH) {
+    return { ok: false, reason: `Password must be at most ${MAX_PASSWORD_LENGTH} characters long.` };
+  }
+  const lowered = password.toLowerCase();
+  if (COMMON_PASSWORDS.has(lowered) || /^(.)\1+$/.test(password)) {
+    return { ok: false, reason: 'Password is too common.' };
+  }
+  if (email) {
+    const address = email.trim().toLowerCase();
+    const local = address.split('@')[0] ?? '';
+    if (lowered === address || (local.length >= 4 && lowered.includes(local))) {
+      return { ok: false, reason: 'Password must not contain your email address.' };
+    }
+  }
+  return { ok: true };
+}
+
+// Current scrypt parameters. Stored hashes record their own parameters, so
+// these can be raised later: verification accepts any hash within the bounds
+// below, and a successful login transparently rehashes (needsRehash).
 const SCRYPT_N = 16384;
 const SCRYPT_R = 8;
 const SCRYPT_P = 1;
 const SCRYPT_KEY_LENGTH = 32;
 const SCRYPT_SALT_LENGTH = 16;
 
+// Verified against when no credential exists, so an unknown email costs the
+// same scrypt work as a wrong password (no timing enumeration).
+const TIMING_DECOY_HASH = 'scrypt$16384$8$1$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+
 // ---------------------------------------------------------------------------
 // Password hashing (scrypt)
 // ---------------------------------------------------------------------------
 
-export async function hashPassword(password: string): Promise<string> {
-  if (password.length < MIN_PASSWORD_LENGTH) {
-    throw new Error('Password must be at least 8 characters long.');
-  }
+export async function hashPassword(password: string, email?: string): Promise<string> {
+  const policy = checkNewPassword(password, email);
+  if (!policy.ok) throw new Error(policy.reason);
   const salt = randomBytes(SCRYPT_SALT_LENGTH);
-  const key = await deriveKey(password, salt);
+  const key = await deriveKey(password, salt, SCRYPT_N, SCRYPT_R, SCRYPT_P);
   return formatScryptHash(key, salt);
 }
 
 export async function verifyPassword(password: string, stored: string): Promise<boolean> {
+  if (password.length > MAX_PASSWORD_INPUT_LENGTH) return false;
   const parsed = parseScryptHash(stored);
   if (!parsed) return false;
-  const candidate = await deriveKey(password, parsed.salt);
+  const candidate = await deriveKey(password, parsed.salt, parsed.n, parsed.r, parsed.p);
   const storedKey = Buffer.from(parsed.key, 'base64url');
   if (candidate.length !== storedKey.length) return false;
   return timingSafeEqual(candidate, storedKey);
 }
 
-async function deriveKey(password: string, salt: Buffer): Promise<Buffer> {
+/** True when a valid stored hash uses parameters other than the current ones. */
+export function needsRehash(stored: string): boolean {
+  const parsed = parseScryptHash(stored);
+  return Boolean(parsed && (parsed.n !== SCRYPT_N || parsed.r !== SCRYPT_R || parsed.p !== SCRYPT_P));
+}
+
+async function deriveKey(password: string, salt: Buffer, n: number, r: number, p: number): Promise<Buffer> {
   return Buffer.from(await scrypt(password, salt, SCRYPT_KEY_LENGTH, {
-    N: SCRYPT_N, r: SCRYPT_R, p: SCRYPT_P, maxmem: 128 * SCRYPT_N * SCRYPT_R * 2,
+    N: n, r, p, maxmem: 256 * n * r * 2,
   }));
 }
 
@@ -92,19 +141,20 @@ function formatScryptHash(key: Buffer, salt: Buffer): string {
   ].join('$');
 }
 
-function parseScryptHash(stored: string): { salt: Buffer; key: string } | null {
+function parseScryptHash(stored: string): { salt: Buffer; key: string; n: number; r: number; p: number } | null {
   const parts = stored.split('$');
+  if (parts.length !== 6 || parts[0] !== 'scrypt') return null;
+  const [n, r, p] = [Number(parts[1]), Number(parts[2]), Number(parts[3])];
+  // Bounds keep a tampered hash from requesting absurd work.
   if (
-    parts.length !== 6
-    || parts[0] !== 'scrypt'
-    || parts[1] !== String(SCRYPT_N)
-    || parts[2] !== String(SCRYPT_R)
-    || parts[3] !== String(SCRYPT_P)
+    !Number.isInteger(n) || n < 16384 || n > 131072 || (n & (n - 1)) !== 0
+    || !Number.isInteger(r) || r < 8 || r > 16
+    || !Number.isInteger(p) || p < 1 || p > 4
   ) {
     return null;
   }
   try {
-    return { salt: Buffer.from(parts[4], 'base64url'), key: parts[5] };
+    return { salt: Buffer.from(parts[4], 'base64url'), key: parts[5], n, r, p };
   } catch {
     return null;
   }
@@ -190,18 +240,39 @@ export async function verifyFieldToken(
 }
 
 // ---------------------------------------------------------------------------
-// Session ledger
+// Session ledger (migration 035)
 // ---------------------------------------------------------------------------
+//
+// Sessions are issued, validated and revoked only through SECURITY DEFINER
+// windows. Each session records the user's and membership's auth_version at
+// issue; any credential/status/role/MFA change bumps a version (and revokes the
+// affected sessions) in the same transaction, so no token survives -- or is
+// revived by -- a later reactivation.
 
-// Types are imported from '@/lib/mfa' to avoid circular dependency
-// export type AuthenticatedStaff = { ... }
-// export type LoginResult = { ... }
+function newJti(): string {
+  return randomBytes(24).toString('base64url');
+}
+
+type LoginCredentialRow = {
+  platform_user_id: string;
+  email: string;
+  display_name: string;
+  password_hash: string | null;
+  membership_id: string;
+  role: ApplicationRole;
+  mfa_required: boolean;
+  totp_secret: string | null;
+  locked: boolean;
+};
 
 /**
- * Authenticates email + password against an organization and issues a session.
- * Runs cross-tenant (platform_runtime): the credential and the active membership
- * are read together through the staff_login_lookup window, so a login can never
- * distinguish a wrong password from a missing user (enumeration-safe, SEC-09).
+ * Authenticates email + password (+ TOTP where required) against an
+ * organization and issues a session.
+ *
+ * Enumeration-safe: an unknown email, a wrong password, a locked account and a
+ * wrong/replayed TOTP code all return 'invalid-credentials', and every path
+ * performs the same scrypt work. Failures count toward the deployment-wide
+ * lockout (10 consecutive failures lock the account for 15 minutes).
  */
 export async function loginWithPassword(options: {
   email: string;
@@ -210,35 +281,25 @@ export async function loginWithPassword(options: {
   totpToken?: string;
 }): Promise<LoginResult> {
   const email = options.email.trim().toLowerCase();
-  if (!email || !options.password || !options.organizationId) {
+  if (!email || !options.password || !options.organizationId
+      || options.password.length > MAX_PASSWORD_INPUT_LENGTH) {
     return { ok: false, reason: 'invalid-credentials' };
   }
 
   const rows = (await platformDb().query(
-    `SELECT
-       platform_user_id, email, display_name, password_hash,
-       membership_id, role, mfa_required, totp_secret
-     FROM staff_login_lookup($1::text, $2::uuid)`,
+    `SELECT platform_user_id, email, display_name, password_hash,
+            membership_id, role, mfa_required, totp_secret, locked
+       FROM staff_login_lookup($1::text, $2::uuid)`,
     [email, options.organizationId],
-  )) as Array<{
-    platform_user_id: string;
-    email: string;
-    display_name: string;
-    password_hash: string | null;
-    membership_id: string;
-    role: ApplicationRole;
-    mfa_required: boolean;
-    totp_secret: string | null;
-  }>;
+  )) as LoginCredentialRow[];
   const credential = rows[0];
-  if (!credential || !credential.password_hash) {
-    return { ok: false, reason: 'invalid-credentials' };
-  }
-  if (!(await verifyPassword(options.password, credential.password_hash))) {
+
+  const passwordOk = await verifyPassword(options.password, credential?.password_hash ?? TIMING_DECOY_HASH);
+  if (!credential || !credential.password_hash || !passwordOk || credential.locked) {
+    await platformDb().query('SELECT staff_login_failure($1::text)', [email]);
     return { ok: false, reason: 'invalid-credentials' };
   }
 
-  // MFA required - verify TOTP token if provided, otherwise return mfa-required challenge
   if (credential.mfa_required) {
     if (!options.totpToken) {
       return {
@@ -254,21 +315,31 @@ export async function loginWithPassword(options: {
         },
       };
     }
-    if (!credential.totp_secret || !verifyTotpToken(options.totpToken, credential.totp_secret)) {
+    const step = credential.totp_secret ? verifyTotpStep(options.totpToken, credential.totp_secret) : null;
+    const fresh = step !== null && await consumeTotpStep(credential.platform_user_id, step);
+    if (!fresh) {
+      await platformDb().query('SELECT staff_login_failure($1::text)', [email]);
       return { ok: false, reason: 'invalid-credentials' };
     }
   }
 
-  const jti = createHash('sha256').update(`${credential.platform_user_id}:${randomBytes(16).toString('hex')}`).digest('hex').slice(0, 40);
-  const ttlMinutes = fieldAuthTokenMinutes();
-  const issuedAt = new Date();
-  const expiresAt = new Date(issuedAt.getTime() + ttlMinutes * 60_000);
+  await platformDb().query('SELECT staff_login_success($1::uuid)', [credential.platform_user_id]);
 
-  await platformDb().query(
-    `INSERT INTO field_sessions (jti, platform_user_id, organization_id, role, issued_at, expires_at)
-     VALUES ($1, $2, $3, $4, $5, $6)`,
-    [jti, credential.platform_user_id, options.organizationId, credential.role, issuedAt.toISOString(), expiresAt.toISOString()],
-  );
+  // Transparent upgrade to current scrypt parameters. Does not revoke sessions.
+  if (needsRehash(credential.password_hash)) {
+    await platformDb().query(
+      'SELECT staff_password_rehash($1::uuid, $2::text, $3::text)',
+      [credential.platform_user_id, credential.password_hash, await rehashPassword(options.password)],
+    );
+  }
+
+  const jti = newJti();
+  const ttlMinutes = fieldAuthTokenMinutes();
+  const issued = (await platformDb().query(
+    'SELECT membership_id, expires_at FROM staff_session_issue($1::text, $2::uuid, $3::uuid, $4::integer)',
+    [jti, credential.platform_user_id, options.organizationId, ttlMinutes * 60],
+  )) as Array<{ membership_id: string; expires_at: string | Date }>;
+  if (!issued[0]) return { ok: false, reason: 'invalid-credentials' };
 
   const token = await signFieldToken({
     sub: credential.platform_user_id,
@@ -282,13 +353,13 @@ export async function loginWithPassword(options: {
     ok: true,
     value: {
       token,
-      expiresAt: expiresAt.toISOString(),
+      expiresAt: new Date(issued[0].expires_at).toISOString(),
       staff: {
         platformUserId: credential.platform_user_id,
         email: credential.email,
         displayName: credential.display_name,
         organizationId: options.organizationId,
-        membershipId: credential.membership_id,
+        membershipId: issued[0].membership_id,
         role: credential.role,
         mfaRequired: credential.mfa_required,
       },
@@ -296,12 +367,17 @@ export async function loginWithPassword(options: {
   };
 }
 
+/** Hashes with current parameters for a rehash (the policy applied at set time). */
+async function rehashPassword(password: string): Promise<string> {
+  const salt = randomBytes(SCRYPT_SALT_LENGTH);
+  return formatScryptHash(await deriveKey(password, salt, SCRYPT_N, SCRYPT_R, SCRYPT_P), salt);
+}
+
 /**
  * Resolves a session token to a live principal, or null. Fails closed:
- * unverifiable signature, expired token, revoked/missing session row, or a
- * membership that is no longer active all yield null. The live role is read
- * from the database on every request, so the principal always reflects the
- * current membership even when the token's role claim is stale.
+ * unverifiable signature, expired token, a revoked/missing session, a changed
+ * user or membership version, or anything no longer active all yield null. The
+ * role is the live membership role.
  */
 export async function resolveStaffFromToken(
   token: string,
@@ -310,32 +386,22 @@ export async function resolveStaffFromToken(
   if (!verified) return null;
   const { claims } = verified;
 
-  const sessionRows = (await platformDb().query(
-    `SELECT id
-       FROM field_sessions
-      WHERE jti = $1
-        AND revoked_at IS NULL
-        AND expires_at > now()`,
-    [claims.jti],
-  )) as Array<{ id: string }>;
-  if (!sessionRows[0]) return null;
-
-  const membershipRows = (await platformDb().query(
-    `SELECT membership_id, role, mfa_required, display_name
-       FROM staff_session_membership($1::uuid, $2::uuid)`,
-    [claims.sub, claims.organization_id],
-  )) as Array<{ membership_id: string; role: ApplicationRole; mfa_required: boolean; display_name: string }>;
-  const membership = membershipRows[0];
-  if (!membership) return null;
+  const rows = (await platformDb().query(
+    `SELECT membership_id, role, mfa_required, display_name, email
+       FROM staff_session_validate($1::text, $2::uuid, $3::uuid)`,
+    [claims.jti, claims.sub, claims.organization_id],
+  )) as Array<{ membership_id: string; role: ApplicationRole; mfa_required: boolean; display_name: string; email: string }>;
+  const session = rows[0];
+  if (!session) return null;
 
   return {
     platformUserId: claims.sub,
-    email: claims.email,
-    displayName: membership.display_name,
+    email: session.email,
+    displayName: session.display_name,
     organizationId: claims.organization_id,
-    membershipId: membership.membership_id,
-    role: membership.role,
-    mfaRequired: membership.mfa_required,
+    membershipId: session.membership_id,
+    role: session.role,
+    mfaRequired: session.mfa_required,
   };
 }
 
@@ -343,17 +409,10 @@ export async function resolveStaffFromToken(
 export async function revokeFieldSession(token: string): Promise<void> {
   const verified = await verifyFieldToken(token);
   if (!verified) return;
-  await platformDb().query(
-    `UPDATE field_sessions
-        SET revoked_at = now()
-      WHERE jti = $1
-        AND revoked_at IS NULL
-        AND expires_at > now()`,
-    [verified.claims.jti],
-  );
+  await platformDb().query('SELECT staff_session_revoke($1::text)', [verified.claims.jti]);
 }
 
-/** Revokes every active session for a staff member (role/status change). */
+/** Revokes every active session for a staff member. */
 export async function revokeAllSessionsForStaff(platformUserId: string): Promise<void> {
   await platformDb().query(
     'SELECT revoke_field_sessions_for_user($1::uuid)',
@@ -363,6 +422,7 @@ export async function revokeAllSessionsForStaff(platformUserId: string): Promise
 
 export type StaffMembershipOption = {
   organizationId: string;
+  organizationName: string;
   membershipId: string;
   role: ApplicationRole;
   displayName: string;
@@ -370,19 +430,20 @@ export type StaffMembershipOption = {
 };
 
 /**
- * Active organizations for an email (used to disambiguate a login that did not
- * name an organization). Returns memberships for active users/memberships/orgs
- * only; an email with none reads as invalid credentials, not as a leak.
+ * Active organizations for an email. Only called AFTER the password was
+ * verified (login route), so the choices are never shown to an unauthenticated
+ * caller.
  */
 export async function listActiveMembershipsForEmail(
   email: string,
 ): Promise<StaffMembershipOption[]> {
   const rows = (await platformDb().query(
-    `SELECT organization_id, membership_id, role, mfa_required, display_name, email
+    `SELECT organization_id, organization_name, membership_id, role, mfa_required, display_name, email
        FROM staff_memberships_for_email($1::text)`,
     [email.trim().toLowerCase()],
   )) as Array<{
     organization_id: string;
+    organization_name: string;
     membership_id: string;
     role: ApplicationRole;
     mfa_required: boolean;
@@ -391,6 +452,7 @@ export async function listActiveMembershipsForEmail(
   }>;
   return rows.map((row) => ({
     organizationId: row.organization_id,
+    organizationName: row.organization_name,
     membershipId: row.membership_id,
     role: row.role,
     displayName: row.display_name,
@@ -398,106 +460,167 @@ export async function listActiveMembershipsForEmail(
   }));
 }
 
+/**
+ * Verifies the global credential for an email (used before listing a
+ * multi-organization login's choices, and for re-authentication). Same
+ * enumeration and lockout behaviour as loginWithPassword.
+ */
 export async function verifyUserGlobalPassword(
   email: string,
   password: string,
-): Promise<{ ok: true; platformUserId: string } | { ok: false }> {
+): Promise<{ ok: true; platformUserId: string; passwordHash: string } | { ok: false }> {
   const normalizedEmail = email.trim().toLowerCase();
-  if (!normalizedEmail || !password) return { ok: false };
+  if (!normalizedEmail || !password || password.length > MAX_PASSWORD_INPUT_LENGTH) return { ok: false };
 
   const rows = (await platformDb().query(
     'SELECT platform_user_id, password_hash FROM staff_user_credential_lookup($1::text)',
     [normalizedEmail],
   )) as Array<{ platform_user_id: string; password_hash: string | null }>;
-
   const user = rows[0];
-  if (!user || !user.password_hash) return { ok: false };
 
-  const valid = await verifyPassword(password, user.password_hash);
-  if (!valid) return { ok: false };
-
-  return { ok: true, platformUserId: user.platform_user_id };
+  const valid = await verifyPassword(password, user?.password_hash ?? TIMING_DECOY_HASH);
+  if (!user || !user.password_hash || !valid) {
+    await platformDb().query('SELECT staff_login_failure($1::text)', [normalizedEmail]);
+    return { ok: false };
+  }
+  return { ok: true, platformUserId: user.platform_user_id, passwordHash: user.password_hash };
 }
 
 // ---------------------------------------------------------------------------
-// MFA Enrollment
+// Password change and reset
 // ---------------------------------------------------------------------------
+
+export type PasswordChangeResult =
+  | { ok: true }
+  | { ok: false; reason: 'invalid-credentials' | 'weak-password' | 'conflict'; detail?: string };
+
+/**
+ * Authenticated change: re-verifies the current password, applies the policy,
+ * and swaps the hash compare-and-set. Every session (this one included) is
+ * revoked by the version trigger, so the caller must sign in again.
+ */
+export async function changePassword(options: {
+  email: string;
+  currentPassword: string;
+  newPassword: string;
+}): Promise<PasswordChangeResult> {
+  const current = await verifyUserGlobalPassword(options.email, options.currentPassword);
+  if (!current.ok) return { ok: false, reason: 'invalid-credentials' };
+  const policy = checkNewPassword(options.newPassword, options.email);
+  if (!policy.ok) return { ok: false, reason: 'weak-password', detail: policy.reason };
+
+  const rows = (await platformDb().query(
+    'SELECT staff_password_change($1::uuid, $2::text, $3::text) AS changed',
+    [current.platformUserId, current.passwordHash, await hashPassword(options.newPassword, options.email)],
+  )) as Array<{ changed: boolean }>;
+  return rows[0]?.changed ? { ok: true } : { ok: false, reason: 'conflict' };
+}
+
+export function hashResetToken(token: string): string {
+  return createHash('sha256').update(token, 'utf8').digest('hex');
+}
+
+/**
+ * Consumes an operator-issued reset (or initial set-password) token. Unknown,
+ * used and expired tokens are indistinguishable. Revokes every session.
+ */
+export async function resetPasswordWithToken(options: {
+  token: string;
+  newPassword: string;
+}): Promise<{ ok: true } | { ok: false; reason: 'invalid-token' | 'weak-password'; detail?: string }> {
+  if (!/^[A-Za-z0-9_-]{43}$/.test(options.token)) return { ok: false, reason: 'invalid-token' };
+  const policy = checkNewPassword(options.newPassword);
+  if (!policy.ok) return { ok: false, reason: 'weak-password', detail: policy.reason };
+
+  const rows = (await platformDb().query(
+    'SELECT staff_password_reset_consume($1::text, $2::text) AS platform_user_id',
+    [hashResetToken(options.token), await hashPassword(options.newPassword)],
+  )) as Array<{ platform_user_id: string | null }>;
+  return rows[0]?.platform_user_id ? { ok: true } : { ok: false, reason: 'invalid-token' };
+}
+
+// ---------------------------------------------------------------------------
+// MFA (TOTP)
+// ---------------------------------------------------------------------------
+
+type MfaState = { totp_secret: string | null; totp_pending_secret: string | null; totp_last_step: string | number | null };
+
+async function readMfaState(platformUserId: string): Promise<MfaState | null> {
+  const rows = (await platformDb().query(
+    'SELECT totp_secret, totp_pending_secret, totp_last_step FROM staff_mfa_state($1::uuid)',
+    [platformUserId],
+  )) as MfaState[];
+  return rows[0] ?? null;
+}
+
+async function consumeTotpStep(platformUserId: string, step: number): Promise<boolean> {
+  const rows = (await platformDb().query(
+    'SELECT staff_mfa_consume_step($1::uuid, $2::bigint) AS fresh',
+    [platformUserId, step],
+  )) as Array<{ fresh: boolean }>;
+  return rows[0]?.fresh === true;
+}
 
 export type MfaSetupResult =
   | { ok: true; value: { secret: string; uri: string } }
-  | { ok: false; reason: 'unauthenticated' | 'already-enrolled' | 'not-configured' };
+  | { ok: false; reason: 'already-enrolled' };
 
 /**
- * Initiates MFA enrollment for the current user. Returns a new TOTP secret
- * and otpauth:// URI for QR code generation.
+ * Starts enrollment with a PENDING secret. A user whose authenticator is
+ * already active (MFA in another organization) gets 'already-enrolled' and
+ * completes enrollment here with a code from that same authenticator -- the
+ * active secret is never replaced by a new enrollment.
  */
 export async function initiateMfaEnrollment(
   platformUserId: string,
   email: string,
 ): Promise<MfaSetupResult> {
   const secret = generateTotpSecret();
-  const uri = getTotpUri(email, secret);
-
-  await platformDb().query(
-    'SELECT staff_mfa_initiate($1::uuid, $2::text)',
-    [platformUserId, secret],
-  );
-
-  return { ok: true, value: { secret, uri } };
+  try {
+    await platformDb().query('SELECT staff_mfa_initiate($1::uuid, $2::text)', [platformUserId, secret]);
+  } catch (error) {
+    if (error instanceof Error && /totp_already_enrolled/.test(error.message)) {
+      return { ok: false, reason: 'already-enrolled' };
+    }
+    throw error;
+  }
+  return { ok: true, value: { secret, uri: getTotpUri(email, secret) } };
 }
 
 /**
- * Completes MFA enrollment by verifying the first TOTP code.
- * If verification succeeds, marks mfa_required = true on the membership.
+ * Completes enrollment for the current organization with a code from the
+ * pending secret (or the already-active one). Revokes existing sessions: the
+ * next sign-in to this organization requires a code.
  */
 export async function completeMfaEnrollment(
   platformUserId: string,
   organizationId: string,
   totpToken: string,
 ): Promise<{ ok: boolean; reason?: string }> {
-  const userRows = (await platformDb().query(
-    `SELECT totp_secret FROM staff_user_credential_lookup(
-       (SELECT email FROM platform_users WHERE id = $1::uuid)
-     )`,
-    [platformUserId],
-  )) as Array<{ totp_secret: string | null }>;
-  const user = userRows[0];
-  if (!user?.totp_secret || !verifyTotpToken(totpToken, user.totp_secret)) {
-    return { ok: false, reason: 'invalid-token' };
-  }
+  const state = await readMfaState(platformUserId);
+  const secret = state?.totp_secret ?? state?.totp_pending_secret ?? null;
+  const step = secret ? verifyTotpStep(totpToken, secret) : null;
+  if (step === null) return { ok: false, reason: 'invalid-token' };
 
-  await platformDb().query(
-    'SELECT staff_mfa_complete($1::uuid, $2::uuid)',
-    [platformUserId, organizationId],
-  );
-
-  return { ok: true };
+  const rows = (await platformDb().query(
+    'SELECT staff_mfa_complete($1::uuid, $2::uuid, $3::bigint) AS completed',
+    [platformUserId, organizationId, step],
+  )) as Array<{ completed: boolean }>;
+  return rows[0]?.completed ? { ok: true } : { ok: false, reason: 'invalid-token' };
 }
 
-/**
- * Disables MFA for a user (requires TOTP verification).
- */
+/** Disables MFA for one organization (the caller re-verified the password). */
 export async function disableMfa(
   platformUserId: string,
   organizationId: string,
   totpToken: string,
 ): Promise<{ ok: boolean; reason?: string }> {
-  const userRows = (await platformDb().query(
-    `SELECT totp_secret FROM staff_user_credential_lookup(
-       (SELECT email FROM platform_users WHERE id = $1::uuid)
-     )`,
-    [platformUserId],
-  )) as Array<{ totp_secret: string | null }>;
-  const user = userRows[0];
-  if (!user?.totp_secret || !verifyTotpToken(totpToken, user.totp_secret)) {
+  const state = await readMfaState(platformUserId);
+  const step = state?.totp_secret ? verifyTotpStep(totpToken, state.totp_secret) : null;
+  if (step === null || !(await consumeTotpStep(platformUserId, step))) {
     return { ok: false, reason: 'invalid-token' };
   }
-
-  await platformDb().query(
-    'SELECT staff_mfa_disable($1::uuid, $2::uuid)',
-    [platformUserId, organizationId],
-  );
-
+  await platformDb().query('SELECT staff_mfa_disable($1::uuid, $2::uuid)', [platformUserId, organizationId]);
   return { ok: true };
 }
 

@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:integration": "vitest run src/lib/auth.integration.test.ts"
   },
   "dependencies": {
     "@contractor-platform/ai": "0.1.0",

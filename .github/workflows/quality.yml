@@ -100,6 +100,11 @@ jobs:
         run: npm run db:verify
         env:
           DATABASE_URL_OWNER: postgresql://jbox_owner:ci-only@localhost:5432/jbox
+      - name: Native-auth lifecycle through the real auth module (P2)
+        run: npm run test:integration --workspace @contractor-platform/product
+        env:
+          INTEGRATION_DATABASE_URL: postgresql://jbox_runtime:ci-only@localhost:5432/jbox
+          INTEGRATION_OWNER_URL: postgresql://jbox_owner:ci-only@localhost:5432/jbox
       - name: Re-running the migrator is a no-op
         run: npm run db:migrate | tee migrate.log && grep -q 'up to date' migrate.log
         env:

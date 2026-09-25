@@ -26,9 +26,11 @@ import { runWithOrganizationContext } from '@/lib/organization-context-store';
  *      principal authenticated for.
  *
  * The JWT carries the organization id, but the organization id is not trusted
- * on its own: every request re-reads the active membership through the
- * staff_session_membership SECURITY DEFINER window (migration 007), so a
- * revoked membership or changed role applies on the next request. Tenant
+ * on its own: every request validates the session through the
+ * staff_session_validate SECURITY DEFINER window (migration 035), which
+ * requires the session's recorded user/membership versions to be current, so
+ * a revoked membership, changed role, suspension or credential change applies
+ * on the next request and can never be undone by reactivation. Tenant
  * context established here is exactly the boundary the database enforces.
  *
  * Development/demo fallback: when FIELD_DEMO_MODE is explicitly enabled the

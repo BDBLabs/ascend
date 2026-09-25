@@ -51,6 +51,7 @@ const syntheticFixtures = [
   'postgres://control:test@localhost/control',
   // CI-only disposable service container (quality.yml isolation job).
   'postgresql://jbox_owner:ci-only@localhost:5432/jbox',
+  'postgresql://jbox_runtime:ci-only@localhost:5432/jbox',
   // Synthetic hosts in runtime-contract tests.
   'postgresql://jbox_owner:pw@${endpoint}',
   'postgresql://u:p@',
