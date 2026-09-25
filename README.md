@@ -26,10 +26,18 @@ take over the business.
 
 ## Status
 
-Early. This repository is a selective fresh start from a working single-tenant prototype
-(`paris-electric-prototype`), which continues to serve the reference tenant while this one is
-built. See [Porting Ledger](docs/PORTING_LEDGER.md) for what carries across and what
+Staging-complete (`v0.1.0`, 2026-09-25) — production-distribution snapshot,
+**not GA**. This repository is a selective fresh start from a working
+single-tenant prototype (`paris-electric-prototype`), which continues to
+serve the reference tenant while this one is built. See [Porting
+Ledger](docs/PORTING_LEDGER.md) for what carries across and what
 deliberately does not.
+
+Production targets, environment contract, and promotion checklist:
+[DEPLOYMENT.md](DEPLOYMENT.md). Release history: [CHANGELOG.md](CHANGELOG.md).
+Go-live is gated on the CHANGELOG's GA gates plus legal review (NY GBL Art.
+36-A escrow, §396-t cooling-off, Suffolk HIC license number, ST-124). AI
+review is not legal sign-off.
 
 Paris Electric Inc. (Suffolk County, New York) is tenant #1 and the design reference — not the
 customer.
@@ -64,6 +72,3 @@ These are load-bearing and were expensive to learn:
 Scheduling beyond appointment booking — dispatch boards, capacity and travel optimization — is
 deliberately out of scope. It is the boundary between this platform and a field-service
 management suite, and crossing it changes the product, the competition, and the price point.
-
-Go-live is gated on legal review (NY GBL Art. 36-A escrow, §396-t cooling-off, Suffolk HIC
-license number, ST-124). AI review is not legal sign-off.

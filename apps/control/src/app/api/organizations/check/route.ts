@@ -17,7 +17,7 @@ function unauthorized() {
 export async function GET(request: Request) {
   if (!controlIsAuthorized(request.headers.get('authorization'))) return unauthorized();
 
-  const slug = request.nextUrl.searchParams.get('slug') ?? '';
+  const slug = new URL(request.url).searchParams.get('slug') ?? '';
   if (!slug || !SLUG_PATTERN.test(slug) || slug.length > 63) {
     return Response.json(
       { ok: false, error: 'slug must be a valid subdomain (lowercase alphanumeric and hyphens, max 63 characters)' },

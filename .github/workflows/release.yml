@@ -1,0 +1,45 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run secrets:check
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build:all
+      - run: npm run audit:production
+
+  docker:
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build product image
+        run: docker build -f apps/product/Dockerfile -t ascend-product:${{ github.ref_name }} .
+      - name: Build control image
+        run: docker build -f apps/control/Dockerfile -t ascend-control:${{ github.ref_name }} .
+
+  github-release:
+    needs: docker
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true

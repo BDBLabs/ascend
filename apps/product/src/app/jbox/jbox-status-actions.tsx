@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import type { JobStatus } from '@/lib/job-contract';
-import { COLORS, STATUS_LABELS, statusBadge } from './jbox-tokens';
+import { COLORS, STATUS_LABELS } from './jbox-tokens';
 
 const TRANSITIONS: Record<JobStatus, JobStatus[]> = {
   scheduled: ['in_progress', 'cancelled'],

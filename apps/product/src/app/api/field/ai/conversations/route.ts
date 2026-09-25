@@ -8,7 +8,6 @@ import { isDatabaseConfigured } from '@/lib/db';
 import { privateJson } from '@/lib/http';
 import {
   listConversations,
-  getConversation,
   deleteConversation,
 } from '@/lib/ai-conversations';
 

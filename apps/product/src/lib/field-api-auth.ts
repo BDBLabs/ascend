@@ -73,15 +73,29 @@ export async function resolveJwtFieldPrincipal(): Promise<FieldPrincipal | null>
  * then), resolve the configured demo organization so the Field UI can be
  * explored against a database-backed tenant. There is no real membership in
  * this mode; the organization id comes from the deployment environment rather
- * than a request. FIELD_DEMO_MODE is the deliberate opt-in that opens the
- * workspace to the configured demo organization in production.
+ * than a request.
+ *
+ * PRODUCTION FAIL-CLOSED (P0.1): a production process NEVER serves the demo
+ * owner principal on `FIELD_DEMO_MODE=1` alone. Production additionally
+ * requires the explicit acknowledgement `FIELD_DEMO_ALLOW_IN_PRODUCTION=1`,
+ * set only on sandbox deployments that hold no real tenant data. Without both
+ * keys this returns null (callers 401) and logs once per process — an
+ * accidentally-carried demo variable cannot anonymously expose a tenant's
+ * Field workspace with owner rights.
  */
 export async function resolveDevelopmentFieldPrincipal(): Promise<FieldPrincipal | null> {
-  const demoMode = process.env.FIELD_DEMO_MODE === '1';
-  if (process.env.NODE_ENV === 'production' && !demoMode) return null;
+  if (process.env.FIELD_DEMO_MODE !== '1') return null;
 
   const organizationId = process.env.DEVELOPMENT_FIELD_ORGANIZATION_ID?.trim() ?? '';
   if (!organizationId) return null;
+
+  if (process.env.NODE_ENV === 'production' && process.env.FIELD_DEMO_ALLOW_IN_PRODUCTION !== '1') {
+    console.warn(
+      '[field-api-auth] FIELD_DEMO_MODE=1 is set on a production process without ' +
+        'FIELD_DEMO_ALLOW_IN_PRODUCTION=1 — refusing the demo owner principal.',
+    );
+    return null;
+  }
 
   return {
     kind: 'development',

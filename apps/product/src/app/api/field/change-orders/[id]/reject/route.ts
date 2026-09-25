@@ -8,8 +8,6 @@ import { rejectChangeOrder } from '@/lib/change-orders';
 
 export const dynamic = 'force-dynamic';
 
-const MAX_BODY_BYTES = 1024;
-
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
