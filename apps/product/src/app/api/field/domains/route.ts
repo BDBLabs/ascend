@@ -6,6 +6,7 @@ import {
   withFieldContext,
 } from '@/lib/field-api-auth';
 import { verificationRecord } from '@/lib/dns-verification';
+import { PLATFORM_BASE_DOMAIN } from '@/lib/host';
 import { privateJson } from '@/lib/http';
 
 export const dynamic = 'force-dynamic';
@@ -14,7 +15,7 @@ const HOSTNAME_PATTERN = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\
 
 /**
  * GET /api/field/domains — list all domains for the current organization.
- * Returns the canonical *.usejbox.com domain and any custom domains.
+ * Returns the canonical platform subdomain and any custom domains.
  */
 export async function GET() {
   const principal = await getFieldPrincipal();
@@ -84,16 +85,19 @@ export async function POST(request: NextRequest) {
     return privateJson({ error: 'hostname is not a valid domain' }, 400);
   }
 
-  // Check if this is a *.usejbox.com subdomain (reserved)
-  if (hostname.endsWith('.usejbox.com')) {
-    return privateJson({ error: 'cannot add *.usejbox.com subdomains as custom domains' }, 400);
+  // The platform domain and its tenant subdomains are reserved.
+  if (hostname === PLATFORM_BASE_DOMAIN || hostname.endsWith(`.${PLATFORM_BASE_DOMAIN}`)) {
+    return privateJson({ error: `cannot add ${PLATFORM_BASE_DOMAIN} hostnames as custom domains` }, 400);
   }
 
   try {
     return await withFieldContext(principal, async () => {
       let rows: Array<Record<string, unknown>>;
       try {
-        rows = await db().query('SELECT id, hostname, verification_token FROM tenant_domain_add($1)', [hostname]);
+        rows = await db().query(
+          'SELECT id, hostname, verification_token FROM tenant_domain_add($1, $2)',
+          [hostname, PLATFORM_BASE_DOMAIN],
+        );
       } catch (error) {
         if ((error as { code?: string }).code === '23505') {
           return privateJson({ error: 'hostname already in use' }, 409);

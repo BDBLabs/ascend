@@ -1,10 +1,10 @@
 /**
  * Migration runner.
  *
- *   JBOX_ENVIRONMENT=development node --env-file=.env.local packages/database/migrate.mjs [--status] [--dry-run]
- *   JBOX_ENVIRONMENT=production  node --env-file=.env.neon.production.local packages/database/migrate.mjs --production
+ *   ASCEND_ENVIRONMENT=development node --env-file=.env.local packages/database/migrate.mjs [--status] [--dry-run]
+ *   ASCEND_ENVIRONMENT=production  node --env-file=.env.neon.production.local packages/database/migrate.mjs --production
  *
- * Environment identity (P1.3): JBOX_ENVIRONMENT must name the target, the
+ * Environment identity (P1.3): ASCEND_ENVIRONMENT must name the target, the
  * target must belong to it (see tool-connection.mjs), and production also needs
  * the explicit --production flag. The first run against a database stamps it
  * with the declared environment; every later run must agree with the stamp.

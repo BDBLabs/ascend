@@ -1,6 +1,6 @@
 # Database Setup
 
-How to stand up J-Box's Neon project, branches, and roles.
+How to stand up Ascend's Neon project, branches, and roles.
 
 Everything here is done **once per environment**. Login roles remain out of migrations,
 but `scripts/provision-neon-branch.mjs` automates their safe creation: it generates credentials
@@ -11,7 +11,7 @@ gitignored local files with mode `0600`. It never prints credential values.
 
 The prototype's project is `proud-forest-86717198`, and its single endpoint
 (`ep-floral-dream-avstsfkj`) is currently serving Paris Electric in production while also
-being what `.env.local` and Vercel preview point at. J-Box gets its own project so that
+being what `.env.local` and Vercel preview point at. Ascend gets its own project so that
 neither system can affect the other, and so the prototype keeps running untouched during
 the cutover.
 
@@ -21,10 +21,10 @@ Provisioned on 2026-08-08 in the direct **BagelTech** Neon organization:
 
 | Resource | ID / value |
 |---|---|
-| Project | `restless-meadow-35560667` (`jbox`) |
+| Project | `restless-meadow-35560667` (`ascend`) |
 | Region | `aws-us-east-1` |
 | PostgreSQL | 17 |
-| Database | `jbox` |
+| Database | `ascend` |
 | Production branch | `br-quiet-band-avc4s183` (default) |
 | Preview branch | `br-floral-poetry-avcpaajg` |
 | Development branch | `br-square-wind-av4qdhvq` |
@@ -44,13 +44,13 @@ with `--adopt=001_foundation.sql` (records without executing), then `002` was ap
 the runner. From here, use the runner and never `psql -f` a migration:
 
 ```bash
-JBOX_ENVIRONMENT=development npm run db:status     # development (.env.local)
-JBOX_ENVIRONMENT=development npm run db:migrate
-JBOX_ENVIRONMENT=preview    node --env-file-if-exists=.env.neon.preview.local    packages/database/migrate.mjs
-JBOX_ENVIRONMENT=production node --env-file-if-exists=.env.neon.production.local packages/database/migrate.mjs --production
+ASCEND_ENVIRONMENT=development npm run db:status     # development (.env.local)
+ASCEND_ENVIRONMENT=development npm run db:migrate
+ASCEND_ENVIRONMENT=preview    node --env-file-if-exists=.env.neon.preview.local    packages/database/migrate.mjs
+ASCEND_ENVIRONMENT=production node --env-file-if-exists=.env.neon.production.local packages/database/migrate.mjs --production
 ```
 
-Every tool refuses to run without `JBOX_ENVIRONMENT` and refuses a target that belongs to a
+Every tool refuses to run without `ASCEND_ENVIRONMENT` and refuses a target that belongs to a
 different environment — see [Environment identity](#environment-identity).
 
 Production verified read-only after `002`: 8 tables, **0** RLS-enabled-but-not-forced, **0**
@@ -63,7 +63,7 @@ applying `002`:
 - `isolation.sql` and `documents.sql` both pass.
 - All five roles report `rolbypassrls = false` and `rolinherit = false`; `contractor_app`,
   `control_app`, and `platform_runtime` report `rolcanlogin = false`.
-- Through the **pooled** endpoint, `jbox_runtime` with no role assumed gets
+- Through the **pooled** endpoint, `ascend_runtime` with no role assumed gets
   `permission denied for table organizations` — `NOINHERIT` is doing its job. The same pooled
   connection, opening a transaction with `SET LOCAL ROLE contractor_app` and
   `set_application_context()`, reads correctly as `current_user = contractor_app`. Transaction
@@ -74,7 +74,7 @@ protected branches and rejected the protection request. Upgrade the direct Bagel
 organization before customer data enters production, then protect `production`. Do not treat
 an unprotected production branch as launch-ready.
 
-No J-Box Product or Control deployment existed when this database was provisioned, and
+No Ascend Product or Control deployment existed when this database was provisioned, and
 both apps were still package scaffolds without build scripts. Both are now deployed and wired
 — see "Wire the environment variables" below.
 
@@ -84,12 +84,12 @@ Neon console → **New Project**.
 
 | Setting | Value |
 |---|---|
-| Name | `jbox` |
+| Name | `ascend` |
 | Postgres version | 17 |
 | Region | `aws-us-east-1` — match the application deployment region |
-| Database name | `jbox` |
+| Database name | `ascend` |
 
-Neon creates an owner role (`jbox_owner` or similar). **That role is for migrations only.**
+Neon creates an owner role (`ascend_owner` or similar). **That role is for migrations only.**
 It owns the tables and has `CREATEROLE`, which migration 001 needs in order to create
 `contractor_app`, `control_app`, and `platform_runtime`.
 
@@ -155,27 +155,27 @@ strings. The equivalent manual SQL is:
 ```sql
 -- Application runtime. Not an owner. No BYPASSRLS. NOINHERIT so it holds no
 -- privilege until it explicitly assumes a role for the transaction.
-CREATE ROLE jbox_runtime LOGIN PASSWORD '<generated>'
+CREATE ROLE ascend_runtime LOGIN PASSWORD '<generated>'
   NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
-GRANT contractor_app, platform_runtime TO jbox_runtime;
-GRANT USAGE ON SCHEMA public TO jbox_runtime;
+GRANT contractor_app, platform_runtime TO ascend_runtime;
+GRANT USAGE ON SCHEMA public TO ascend_runtime;
 
 -- Control plane. Separate login. control_app for control-owned rows
 -- (organizations, domains, identity); contractor_app, switched to only under
 -- an org context, so provisioning writes tenant content (configuration, price
 -- book) through the same RLS-enforced path the tenant itself uses.
-CREATE ROLE jbox_control LOGIN PASSWORD '<generated>'
+CREATE ROLE ascend_control LOGIN PASSWORD '<generated>'
   NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
-GRANT control_app, contractor_app TO jbox_control;
-GRANT USAGE ON SCHEMA public TO jbox_control;
+GRANT control_app, contractor_app TO ascend_control;
+GRANT USAGE ON SCHEMA public TO ascend_control;
 ```
 
-`NOINHERIT` is load-bearing. With it, `jbox_runtime` starts each transaction holding nothing
+`NOINHERIT` is load-bearing. With it, `ascend_runtime` starts each transaction holding nothing
 and must `SET LOCAL ROLE contractor_app` (tenant work) or `platform_runtime` (webhooks, cron,
 health) to do anything. Without it, the login would silently carry the union of both roles'
 privileges and the distinction the schema is built on would stop meaning anything.
 
-`jbox_control` works the same way. A provisioning transaction sets `control_app` for
+`ascend_control` works the same way. A provisioning transaction sets `control_app` for
 control-owned rows, then — after `set_application_context` — switches to `contractor_app` for
 tenant content. Every statement still runs under one RLS-enforced role; the login itself holds
 no privilege between transactions.
@@ -185,7 +185,7 @@ Confirm the result:
 ```sql
 SELECT rolname, rolcanlogin, rolbypassrls, rolinherit
 FROM pg_roles
-WHERE rolname IN ('jbox_runtime','jbox_control','contractor_app','control_app','platform_runtime')
+WHERE rolname IN ('ascend_runtime','ascend_control','contractor_app','control_app','platform_runtime')
 ORDER BY rolname;
 ```
 
@@ -222,7 +222,7 @@ npm run db:seed:dev
 ```
 
 Creates the active organization `paris-dev` ("Paris Electric"), its verified canonical hostname
-`paris.usejbox.com`, the in-force `config-v1` document, two smoke customers, and one draft
+`paris.useascend.com`, the in-force `config-v1` document, two smoke customers, and one draft
 estimate, with record counters advanced so later app-created documents cannot collide. The seed
 also expects `DEVELOPMENT_FIELD_ORGANIZATION_ID` in `.env.local` (dev-only, never deployed) so the
 Field UI's development principal resolves to that organization when Clerk keys are absent.
@@ -237,9 +237,9 @@ have.
 
 | Variable | Role | Endpoint | Where |
 |---|---|---|---|
-| `DATABASE_URL` | `jbox_runtime` | pooled | all environments (provisioned default) |
-| `DATABASE_URL_UNPOOLED` | `jbox_runtime` | **direct** | all environments — the app's own pool reads this |
-| `CONTROL_DATABASE_URL` | `jbox_control` | pooled | all environments (control plane) |
+| `DATABASE_URL` | `ascend_runtime` | pooled | all environments (provisioned default) |
+| `DATABASE_URL_UNPOOLED` | `ascend_runtime` | **direct** | all environments — the app's own pool reads this |
+| `CONTROL_DATABASE_URL` | `ascend_control` | pooled | all environments (control plane) |
 | `DATABASE_URL_OWNER` | owner | direct | **local only** — never set in a deployed environment |
 
 The product app pools against `DATABASE_URL_UNPOOLED` (falling back to `DATABASE_URL`); the
@@ -253,14 +253,16 @@ node scripts/provision-neon-branch.mjs \
   restless-meadow-35560667 development development recover-existing
 ```
 
-### Vercel, not Fly
+### Deployment targets (see DEPLOYMENT.md — authoritative)
 
-Both apps deploy to Vercel under the `bagel-tech` team; the Fly configs and the Fly commands
-below are stale and superseded.
+> Ascend deploys Product and Control to Fly (`ascend-product`,
+> `ascend-control`); Vercel hosts only the transactional-outbox cron.
+> The Vercel wiring notes below are the predecessor deployment record
+> (2026-08-15) and do not describe Ascend targets.
 
 | App | Vercel project | Custom domain | Env (production) |
 |---|---|---|---|
-| Product (Storefront + Field) | `jbox-product` | `usejbox.com` (+ `app`/`demo`/`field`/`paris` subdomains) | `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `CONTROL_BASE_URL`, `CRON_SECRET`, `CUSTOMER_LINK_SECRET`, `FIELD_AUTH_SECRET`, `FIELD_PROVISION_SECRET`, `FIELD_AUTH_KEY_VERSION`, `NVIDIA_API_KEY` |
+| Product (Storefront + Field) | `ascend-product` | `useascend.com` (+ `app`/`demo`/`field`/`paris` subdomains) | `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `CONTROL_BASE_URL`, `CRON_SECRET`, `CUSTOMER_LINK_SECRET`, `FIELD_AUTH_SECRET`, `FIELD_PROVISION_SECRET`, `FIELD_AUTH_KEY_VERSION`, `NVIDIA_API_KEY` |
 | Control (operator plane) | `control` (rootDirectory `apps/control`) | `control.bageltech.net` | `CONTROL_DATABASE_URL`, `CONTROL_API_TOKEN` |
 
 Notes from the 2026-08-15 wiring:
@@ -315,9 +317,9 @@ REMEDIATION_PLAN.md P1.3. The assurance review found `apps/control/.env.local` p
 control development at the **production** branch. Two independent checks now make that a
 refusal instead of a silent production write.
 
-**1. Declared environment.** Every operator tool requires `JBOX_ENVIRONMENT`
+**1. Declared environment.** Every operator tool requires `ASCEND_ENVIRONMENT`
 (`development`, `preview`, `production`, `ci`, `test`). The apps derive it from `VERCEL_ENV`
-(an explicit `JBOX_ENVIRONMENT` must agree); a production build outside Vercel (Fly) must
+(an explicit `ASCEND_ENVIRONMENT` must agree); a production build outside Vercel (Fly) must
 declare it.
 
 **2. Pre-connect endpoint registry.** `config/database-environments.json` (committed, no
@@ -330,20 +332,20 @@ environment. Loopback databases are accepted only for `development`, `ci`, `test
 > Compute). Until they are registered, tools refuse Neon targets — deliberately.
 
 **3. Post-connect stamp.** The first migration run on a database creates
-`public._jbox_environment` holding the declared environment. Every tool and both apps then
+`public._ascend_environment` holding the declared environment. Every tool and both apps then
 refuse a database whose stamp differs from their environment, before any statement of their
 own. A Neon child branch inherits its parent's stamp, so a branch created from production
 reads `production` until an operator re-stamps it:
 
 ```bash
-JBOX_ENVIRONMENT=development npm run db:stamp -- --from=production
+ASCEND_ENVIRONMENT=development npm run db:stamp -- --from=production
 ```
 
 `stamp` refuses to stamp *to* production and refuses an endpoint registered to another
 environment, so the production branch itself cannot be re-labelled.
 
 **Tool policy.** `db:verify` (and every `checks/*.sql` suite) and both seeds never run against
-production. `db:migrate` runs against production only with `JBOX_ENVIRONMENT=production`
+production. `db:migrate` runs against production only with `ASCEND_ENVIRONMENT=production`
 **and** `--production`.
 
 **Rotation.** Any credential that has lived in a file for the wrong environment (the control
@@ -361,7 +363,7 @@ verify-full the stated behaviour.
 
 ### Role memberships
 
-`scripts/provision-neon-branch.mjs` now grants `jbox_control` both `control_app` and
+`scripts/provision-neon-branch.mjs` now grants `ascend_control` both `control_app` and
 `contractor_app` (provisioning writes tenant content as `contractor_app`) and verifies the exact
 membership sets. Branches provisioned before this fix (development, preview) are repaired by
 running it with `recover-existing`, which applies the missing grant idempotently.

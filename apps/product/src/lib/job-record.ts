@@ -1,7 +1,7 @@
 import type { JobStatus } from '@/lib/job-contract';
 
 /**
- * A job as the field workspace sees it. jbox has no service-address/town
+ * A job as the field workspace sees it. ascend has no service-address/town
  * columns on jobs (the prototype did); the working address lives on the
  * customer record, and a job names that customer.
  */

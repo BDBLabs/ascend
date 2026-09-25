@@ -37,7 +37,7 @@ The implementation satisfies items 3 and 5 in current production. Item 2 fails b
 | Transaction-local context | PASS | Subtransaction reset proven; real pool COMMIT reuse remains an app-level assumption |
 | `control_app` direct tenant-content write | PASS (denied) | Provisioning must switch to `contractor_app` |
 | `platform_runtime` direct tenant-content read/write | PASS (denied) | Definer functions not covered by this assertion |
-| Runtime login attributes | PASS | Production `jbox_runtime` is non-owner, `NOBYPASSRLS`, `NOINHERIT` |
+| Runtime login attributes | PASS | Production `ascend_runtime` is non-owner, `NOBYPASSRLS`, `NOINHERIT` |
 | Owner path | EXPECTED ELEVATION | Owner sees both tenants and must never be deployed |
 | Outbox expired lease | **DEFECT CONFIRMED** | Suite emits notice but still exits successfully |
 
@@ -72,7 +72,7 @@ This means any SQL foothold in a tenant-role transaction can invoke cross-tenant
 The isolation claim remains conditional on all of the following:
 
 - Vercel forwards a trustworthy original Host and domains are mapped correctly.
-- The product uses `jbox_runtime`, not an owner credential.
+- The product uses `ascend_runtime`, not an owner credential.
 - Every tenant query goes through `db()` and starts a fresh transaction/role/context.
 - No connection/session state survives because `SET LOCAL ROLE` and `set_config(..., true)` remain transaction-local.
 - Definer functions have least-privilege ACLs.
@@ -87,7 +87,7 @@ The current system violates the last three assumptions in at least one environme
 2. Set secure default privileges so future functions do not reopen the boundary.
 3. Add ACL assertions for every function and role, including negative tests under the actual login after `SET LOCAL ROLE`.
 4. Remove production demo mode and add a code-level production invariant.
-5. Correct `jbox_control` provisioning to include `contractor_app`; test a fresh branch end to end.
+5. Correct `ascend_control` provisioning to include `contractor_app`; test a fresh branch end to end.
 6. Correct local control's production connection and add immutable environment identity guards.
 7. Add a multi-connection test proving tenant context is absent after real COMMIT/ROLLBACK and pool reuse.
 8. Keep owner credentials out of all deployed environments and add a deployment check that queries `current_user`, ownership, `rolbypassrls`, and memberships.

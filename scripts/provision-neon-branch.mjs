@@ -37,7 +37,7 @@ async function connectionString(
   projectId,
   branch,
   pooled,
-  roleName = 'jbox_owner',
+  roleName = 'ascend_owner',
 ) {
   const args = [
     '-y',
@@ -49,7 +49,7 @@ async function connectionString(
     '--role-name',
     roleName,
     '--database-name',
-    'jbox',
+    'ascend',
     ...(pooled ? ['--pooled'] : []),
   ];
   const { stdout } = await run('npx', args);
@@ -93,8 +93,8 @@ function withCredentials(connection, username, password) {
 
 // Exactly the role memberships the applications assume -- no more, no fewer.
 const EXPECTED_MEMBERSHIPS = {
-  jbox_runtime: ['contractor_app', 'platform_runtime'],
-  jbox_control: ['contractor_app', 'control_app'],
+  ascend_runtime: ['contractor_app', 'platform_runtime'],
+  ascend_control: ['contractor_app', 'control_app'],
 };
 
 async function verifyMemberships(connection) {
@@ -106,7 +106,7 @@ FROM (
   FROM pg_auth_members AS m
   JOIN pg_roles AS role ON role.oid = m.roleid
   JOIN pg_roles AS member ON member.oid = m.member
-  WHERE member.rolname IN ('jbox_runtime', 'jbox_control')
+  WHERE member.rolname IN ('ascend_runtime', 'ascend_control')
   GROUP BY member.rolname
 ) AS memberships;
 `);
@@ -152,26 +152,26 @@ try {
     // Branches provisioned before the contractor_app fix (development and
     // preview; production was hand-corrected) are repaired here. GRANT of an
     // existing membership is a no-op, so this is safe to repeat.
-    await psql(ownerDirect, 'GRANT contractor_app TO jbox_control;');
+    await psql(ownerDirect, 'GRANT contractor_app TO ascend_control;');
     await verifyMemberships(ownerDirect);
 
     const runtimeDirect = await connectionString(
       projectId,
       branch,
       false,
-      'jbox_runtime',
+      'ascend_runtime',
     );
     const runtimePooled = await connectionString(
       projectId,
       branch,
       true,
-      'jbox_runtime',
+      'ascend_runtime',
     );
     const controlPooled = await connectionString(
       projectId,
       branch,
       true,
-      'jbox_control',
+      'ascend_control',
     );
     const writer = resolve(process.cwd(), 'scripts/write-neon-env.mjs');
     const result = await run(
@@ -204,27 +204,27 @@ try {
 DO $provision$
 BEGIN
   IF EXISTS (
-    SELECT 1 FROM pg_roles WHERE rolname IN ('jbox_runtime', 'jbox_control')
+    SELECT 1 FROM pg_roles WHERE rolname IN ('ascend_runtime', 'ascend_control')
   ) THEN
-    RAISE EXCEPTION 'J-Box login roles already exist on this branch.';
+    RAISE EXCEPTION 'Ascend login roles already exist on this branch.';
   END IF;
 END;
 $provision$;
 
-CREATE ROLE jbox_runtime LOGIN PASSWORD '${runtimePassword}'
+CREATE ROLE ascend_runtime LOGIN PASSWORD '${runtimePassword}'
   NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
-GRANT contractor_app, platform_runtime TO jbox_runtime;
-GRANT USAGE ON SCHEMA public TO jbox_runtime;
+GRANT contractor_app, platform_runtime TO ascend_runtime;
+GRANT USAGE ON SCHEMA public TO ascend_runtime;
 
-CREATE ROLE jbox_control LOGIN PASSWORD '${controlPassword}'
+CREATE ROLE ascend_control LOGIN PASSWORD '${controlPassword}'
   NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
 -- contractor_app is required: provisioning switches to it under an org
 -- context to write tenant content (apps/control/src/lib/control-db.ts).
-GRANT control_app, contractor_app TO jbox_control;
-GRANT USAGE ON SCHEMA public TO jbox_control;
+GRANT control_app, contractor_app TO ascend_control;
+GRANT USAGE ON SCHEMA public TO ascend_control;
 
 ${rotateOwnerFlag === 'rotate-owner'
-    ? `ALTER ROLE jbox_owner PASSWORD '${ownerPassword}';`
+    ? `ALTER ROLE ascend_owner PASSWORD '${ownerPassword}';`
     : ''}
 `;
   await psql(ownerDirect, sql);
@@ -246,8 +246,8 @@ FROM (
     'contractor_app',
     'control_app',
     'platform_runtime',
-    'jbox_runtime',
-    'jbox_control'
+    'ascend_runtime',
+    'ascend_control'
   )
 ) AS role_check;
 `);
@@ -263,7 +263,7 @@ FROM (
     if (role.rolbypassrls || role.neon_superuser_member) {
       throw new Error('role_verification_privilege_failure');
     }
-    const isLogin = ['jbox_runtime', 'jbox_control'].includes(role.rolname);
+    const isLogin = ['ascend_runtime', 'ascend_control'].includes(role.rolname);
     if (role.rolcanlogin !== isLogin || role.rolinherit) {
       throw new Error('role_verification_attribute_failure');
     }
@@ -274,18 +274,18 @@ FROM (
   const credentials = {
     DATABASE_URL: withCredentials(
       ownerPooled,
-      'jbox_runtime',
+      'ascend_runtime',
       runtimePassword,
     ),
     DATABASE_URL_UNPOOLED: withCredentials(
       ownerDirect,
-      'jbox_runtime',
+      'ascend_runtime',
       runtimePassword,
     ),
     DATABASE_URL_OWNER: ownerDirect.toString(),
     CONTROL_DATABASE_URL: withCredentials(
       ownerPooled,
-      'jbox_control',
+      'ascend_control',
       controlPassword,
     ),
   };

@@ -3,9 +3,9 @@ import 'server-only';
 /**
  * CSRF guard for state-changing Field endpoints.
  *
- * The prototype checked the Origin against the tenant's verified hostname; jbox
+ * The prototype checked the Origin against the tenant's verified hostname; ascend
  * has no verified hostname in context, and Field runs on a platform host
- * (field.usejbox.com) where the API is served from the same origin as the app
+ * (field.useascend.com) where the API is served from the same origin as the app
  * it protects. So the allowed origin is the request's own origin — the Field
  * app and the Field API share a host, and a cross-site form or fetch cannot
  * claim that origin.

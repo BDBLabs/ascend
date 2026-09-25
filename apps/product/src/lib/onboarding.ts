@@ -13,9 +13,10 @@ import {
   type ConfigV1,
   type PublicSiteTemplateId,
 } from '@contractor-platform/configuration';
+import { PLATFORM_BASE_DOMAIN } from '@/lib/host';
 
 /**
- * The self-serve onboarding path (usejbox.com → /onboarding).
+ * The self-serve onboarding path (platform base domain → /onboarding).
  *
  * Division of labor (foundation decision, see packages/ai): the model drafts
  * COPY only — tagline, hero, about, service area, services. Brand, tax, and
@@ -329,7 +330,7 @@ export function buildProvisionContract(input: OnboardingSubmitInput): ProvisionC
   return {
     slug,
     displayName: businessName,
-    canonicalHostname: `${slug}.usejbox.com`,
+    canonicalHostname: `${slug}.${PLATFORM_BASE_DOMAIN}`,
     templateId: templateId as PublicSiteTemplateId,
     tradeCategory: input.tradeCategory,
     config: configBody,
@@ -343,7 +344,7 @@ export function buildProvisionContract(input: OnboardingSubmitInput): ProvisionC
 export async function checkSlugAvailability(
   slug: string,
 ): Promise<{ available: boolean; reason?: string }> {
-  const baseUrl = process.env.CONTROL_BASE_URL ?? 'https://jbox-control.vercel.app';
+  const baseUrl = process.env.CONTROL_BASE_URL ?? 'https://ascend-control.vercel.app';
   const token = process.env.CONTROL_API_TOKEN;
   if (!token) {
     return { available: false, reason: 'signups are not configured yet' };
@@ -388,7 +389,7 @@ export async function checkSlugAvailability(
 export async function provisionTenantViaControlPlane(
   contract: ProvisionContract,
 ): Promise<{ organizationId: string; slug: string; canonicalHostname: string }> {
-  const baseUrl = process.env.CONTROL_BASE_URL ?? 'https://jbox-control.vercel.app';
+  const baseUrl = process.env.CONTROL_BASE_URL ?? 'https://ascend-control.vercel.app';
   const token = process.env.CONTROL_API_TOKEN;
   if (!token) {
     throw new OnboardingError('signups are not configured yet (CONTROL_API_TOKEN is missing)', 503);

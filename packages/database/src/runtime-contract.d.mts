@@ -1,7 +1,7 @@
 export type JboxEnvironment = 'development' | 'preview' | 'production' | 'ci' | 'test';
 
 export declare const ENVIRONMENTS: readonly JboxEnvironment[];
-export declare const STAMP_TABLE: '_jbox_environment';
+export declare const STAMP_TABLE: '_ascend_environment';
 
 export declare class EnvironmentGuardError extends Error {}
 

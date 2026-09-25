@@ -46,5 +46,5 @@ try {
 
 process.stdout.write(`seed-dev-tenant.sql: dev tenant seeded\n`);
 process.stdout.write(`  organization_id: ${DEV_ORG_ID}\n`);
-process.stdout.write(`  storefront host: paris.usejbox.com\n`);
+process.stdout.write(`  storefront host: paris.useascend.com\n`);
 process.stdout.write(`  next: set DEVELOPMENT_FIELD_ORGANIZATION_ID=${DEV_ORG_ID} in .env.local to drive the Field UI\n`);

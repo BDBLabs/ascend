@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import OnboardingWizard from './onboarding-wizard';
 
 export const metadata: Metadata = {
-  title: 'Start your storefront — J-Box',
+  title: 'Start your storefront — Ascend',
 };
 
 export default function OnboardingPage() {
@@ -10,7 +10,7 @@ export default function OnboardingPage() {
     <main>
       <header className="site-header">
         <div className="container">
-          <a className="brand-name" href="/">J-Box</a>
+          <a className="brand-name" href="/">Ascend</a>
           <nav className="site-nav">
             <a className="button secondary" href="/">Back to home</a>
           </nav>

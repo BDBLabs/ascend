@@ -6,7 +6,7 @@
 --   - No function in public is executable by PUBLIC.
 --   - Each application role can execute exactly the functions in its row of the
 --     expected matrix below -- no more (negative) and no fewer (positive).
---   - The login roles, when present (jbox_runtime, jbox_control), hold no
+--   - The login roles, when present (ascend_runtime, ascend_control), hold no
 --     direct EXECUTE: they are NOINHERIT and must assume a role first.
 --   - Owner default privileges: a function created now starts with no PUBLIC
 --     EXECUTE.
@@ -39,7 +39,7 @@ INSERT INTO expected_acl (role_name, signature) VALUES
   ('contractor_app', 'create_job_snapshot(uuid,text,text,uuid,text,uuid)'),
   ('contractor_app', 'create_dispatch_ticket(text,text,text,text,text,text,text,text,timestamp with time zone)'),
   ('contractor_app', 'lookup_dispatch_ticket(text)'),
-  ('contractor_app', 'tenant_domain_add(text)'),
+  ('contractor_app', 'tenant_domain_add(text,text)'),
   ('contractor_app', 'tenant_domain_challenge(uuid)'),
   ('contractor_app', 'tenant_domain_mark_verified(uuid,text)'),
   ('contractor_app', 'tenant_domain_remove(uuid)'),
@@ -167,7 +167,7 @@ DECLARE
   login text;
   reachable text;
 BEGIN
-  FOREACH login IN ARRAY ARRAY['jbox_runtime', 'jbox_control'] LOOP
+  FOREACH login IN ARRAY ARRAY['ascend_runtime', 'ascend_control'] LOOP
     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = login) THEN
       SELECT string_agg(f.signature, ', ' ORDER BY f.signature) INTO reachable
       FROM public_functions AS f

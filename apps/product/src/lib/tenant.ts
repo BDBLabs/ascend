@@ -8,7 +8,7 @@ import { runWithOrganizationContext } from '@/lib/organization-context-store';
 
 /**
  * Hostname is the tenant boundary (foundation-decisions.md). A request arrives
- * at the product app on a `*.usejbox.com` subdomain or a custom domain; the
+ * at the product app on a `*.useascend.com` subdomain or a custom domain; the
  * hostname resolves to an organization through resolve_verified_organization(),
  * and every tenant query for that request runs inside runWithOrganizationContext().
  *
@@ -37,7 +37,7 @@ export type TenantContext = {
  * context. Fails closed: a hostname that is not a verified, active tenant
  * throws before any tenant query runs.
  *
- * Supports both *.usejbox.com subdomains (fast path, no DB needed for
+ * Supports both *.useascend.com subdomains (fast path, no DB needed for
  * classification) and custom domains (requires DB resolution).
  */
 export async function withTenant<T>(work: (tenant: TenantContext) => Promise<T>): Promise<T> {
@@ -50,7 +50,7 @@ export async function withTenant<T>(work: (tenant: TenantContext) => Promise<T>)
     throw new TenantResolutionError('platform-host');
   }
 
-  // Try to get the subdomain for *.usejbox.com hosts
+  // Try to get the subdomain for *.useascend.com hosts
   const subdomain = tenantSubdomainFromHost(host);
   const isCustomDomain = !subdomain && isPotentialCustomDomain(host);
 

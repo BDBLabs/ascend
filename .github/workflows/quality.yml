@@ -66,7 +66,7 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
-      JBOX_ENVIRONMENT: ci
+      ASCEND_ENVIRONMENT: ci
       PGHOST: localhost
       PGUSER: postgres
       PGPASSWORD: ci-superuser
@@ -79,43 +79,43 @@ jobs:
       - run: npm ci
       - name: Create the owner role and database
         run: |
-          psql -v ON_ERROR_STOP=1 -c "CREATE ROLE jbox_owner LOGIN CREATEROLE BYPASSRLS PASSWORD 'ci-only'"
-          psql -v ON_ERROR_STOP=1 -c "CREATE DATABASE jbox OWNER jbox_owner"
-          psql -v ON_ERROR_STOP=1 -d jbox -c "ALTER SCHEMA public OWNER TO jbox_owner"
+          psql -v ON_ERROR_STOP=1 -c "CREATE ROLE ascend_owner LOGIN CREATEROLE BYPASSRLS PASSWORD 'ci-only'"
+          psql -v ON_ERROR_STOP=1 -c "CREATE DATABASE ascend OWNER ascend_owner"
+          psql -v ON_ERROR_STOP=1 -d ascend -c "ALTER SCHEMA public OWNER TO ascend_owner"
       - name: Migrate from zero
         run: npm run db:migrate
         env:
-          DATABASE_URL_OWNER: postgresql://jbox_owner:ci-only@localhost:5432/jbox
+          DATABASE_URL_OWNER: postgresql://ascend_owner:ci-only@localhost:5432/ascend
       - name: Create restricted login roles (as provision-neon-branch.mjs does)
         run: |
-          psql -v ON_ERROR_STOP=1 -d jbox <<'SQL'
-          CREATE ROLE jbox_runtime LOGIN PASSWORD 'ci-only' NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
-          GRANT contractor_app, platform_runtime TO jbox_runtime;
-          GRANT USAGE ON SCHEMA public TO jbox_runtime;
-          CREATE ROLE jbox_control LOGIN PASSWORD 'ci-only' NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
-          GRANT control_app, contractor_app TO jbox_control;
-          GRANT USAGE ON SCHEMA public TO jbox_control;
+          psql -v ON_ERROR_STOP=1 -d ascend <<'SQL'
+          CREATE ROLE ascend_runtime LOGIN PASSWORD 'ci-only' NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
+          GRANT contractor_app, platform_runtime TO ascend_runtime;
+          GRANT USAGE ON SCHEMA public TO ascend_runtime;
+          CREATE ROLE ascend_control LOGIN PASSWORD 'ci-only' NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
+          GRANT control_app, contractor_app TO ascend_control;
+          GRANT USAGE ON SCHEMA public TO ascend_control;
           SQL
       - name: Run every check suite
         run: npm run db:verify
         env:
-          DATABASE_URL_OWNER: postgresql://jbox_owner:ci-only@localhost:5432/jbox
+          DATABASE_URL_OWNER: postgresql://ascend_owner:ci-only@localhost:5432/ascend
       - name: Native-auth lifecycle through the real auth module (P2)
         run: npm run test:integration --workspace @contractor-platform/product
         env:
-          INTEGRATION_DATABASE_URL: postgresql://jbox_runtime:ci-only@localhost:5432/jbox
-          INTEGRATION_OWNER_URL: postgresql://jbox_owner:ci-only@localhost:5432/jbox
+          INTEGRATION_DATABASE_URL: postgresql://ascend_runtime:ci-only@localhost:5432/ascend
+          INTEGRATION_OWNER_URL: postgresql://ascend_owner:ci-only@localhost:5432/ascend
       - name: Re-running the migrator is a no-op
         run: npm run db:migrate | tee migrate.log && grep -q 'up to date' migrate.log
         env:
-          DATABASE_URL_OWNER: postgresql://jbox_owner:ci-only@localhost:5432/jbox
+          DATABASE_URL_OWNER: postgresql://ascend_owner:ci-only@localhost:5432/ascend
       - name: Cross-environment runs are refused before touching the database
         env:
-          DATABASE_URL_OWNER: postgresql://jbox_owner:ci-only@localhost:5432/jbox
+          DATABASE_URL_OWNER: postgresql://ascend_owner:ci-only@localhost:5432/ascend
         run: |
           set +e
-          JBOX_ENVIRONMENT=production node packages/database/verify.mjs; code=$?
+          ASCEND_ENVIRONMENT=production node packages/database/verify.mjs; code=$?
           test "$code" -eq 3 || { echo "verify against production exited $code, expected refusal (3)"; exit 1; }
-          JBOX_ENVIRONMENT=development node packages/database/verify.mjs; code=$?
+          ASCEND_ENVIRONMENT=development node packages/database/verify.mjs; code=$?
           test "$code" -eq 3 || { echo "stamp mismatch exited $code, expected refusal (3)"; exit 1; }
           echo "cross-environment runs refused"

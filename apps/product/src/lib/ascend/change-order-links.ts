@@ -3,7 +3,7 @@ import 'server-only';
 import { db } from '@/lib/db';
 
 /**
- * Commercial loop: J-Box change orders attach to projects without
+ * Commercial loop: Ascend change orders attach to projects without
  * touching the change-order engine. One change order has a single
  * commercial home (unique per CO), and only approved change orders
  * count toward current contract value — computed live so approvals
@@ -146,7 +146,7 @@ export type RecentChangeOrder = {
 
 /**
  * Recent change orders across the tenant for link pickers. Read-only
- * over the J-Box tables; the engine itself is untouched.
+ * over the Ascend tables; the engine itself is untouched.
  */
 export async function listRecentChangeOrders(
   limit = 50,

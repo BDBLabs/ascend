@@ -4,19 +4,26 @@
  * the proxy layer and the tenant resolver can share it and it stays unit
  * testable without a database.
  *
- * Security note: suffix matching is anchored on the full label — a hostname
- * like `paris.usejbox.com.evil.com` never matches, and `usejbox.com` itself is
- * never treated as a tenant subdomain.
+ * The platform base domain is deployment configuration
+ * (`PLATFORM_BASE_DOMAIN`, default `useascend.com` for development). Set the
+ * real production domain before go-live — tenant/platform classification
+ * trusts it. Security note: suffix matching is anchored on the full label —
+ * a hostname like `paris.useascend.com.evil.com` never matches, and the base
+ * domain itself is never treated as a tenant subdomain.
  */
 
-export const TENANT_DOMAIN = '.usejbox.com';
+/** Deployment base domain. Never a tenant subdomain itself. */
+export const PLATFORM_BASE_DOMAIN =
+  (process.env.PLATFORM_BASE_DOMAIN ?? '').trim().toLowerCase() || 'useascend.com';
+
+export const TENANT_DOMAIN = `.${PLATFORM_BASE_DOMAIN}`;
 
 /** Hostnames that are platform surfaces, not tenants. */
 export const PLATFORM_HOSTS = new Set([
-  'usejbox.com',
-  'www.usejbox.com',
-  'app.usejbox.com',
-  'field.usejbox.com',
+  PLATFORM_BASE_DOMAIN,
+  `www.${PLATFORM_BASE_DOMAIN}`,
+  `app.${PLATFORM_BASE_DOMAIN}`,
+  `field.${PLATFORM_BASE_DOMAIN}`,
   // Local development — classifyHost returns 'unknown' without this, which
   // causes withTenant() to throw 'no-host' on every dev request.
   'localhost',
@@ -47,7 +54,7 @@ export function classifyHost(host: string | null | undefined): HostKind {
   if (!host) return 'unknown';
   const hostname = hostnameOf(host);
   if (PLATFORM_HOSTS.has(hostname)) return 'platform';
-  // *.usejbox.com subdomains are always tenants (fast path, no DB needed)
+  // Tenant subdomains are always tenants (fast path, no DB needed)
   if (tenantSubdomainFromHost(host)) return 'tenant';
   // Custom domains need DB resolution — return 'unknown' and let withTenant()
   // attempt resolution via resolve_verified_organization()
@@ -56,7 +63,7 @@ export function classifyHost(host: string | null | undefined): HostKind {
 
 /**
  * Returns true if the hostname could be a custom domain (not a platform host,
- * not a *.usejbox.com subdomain). Used by withTenant() to attempt DB resolution.
+ * not a tenant subdomain). Used by withTenant() to attempt DB resolution.
  */
 export function isPotentialCustomDomain(host: string | null | undefined): boolean {
   if (!host) return false;

@@ -26,7 +26,7 @@ VALUES ('de000000-0000-0000-0000-000000000001', 'paris-dev', 'Paris Electric', '
 ON CONFLICT (slug) DO NOTHING;
 
 INSERT INTO organization_domains (organization_id, hostname, is_canonical, verified, verified_at)
-VALUES ('de000000-0000-0000-0000-000000000001', 'paris.usejbox.com', true, true, now())
+VALUES ('de000000-0000-0000-0000-000000000001', 'paris.useascend.com', true, true, now())
 ON CONFLICT (hostname) DO NOTHING;
 
 RESET ROLE;

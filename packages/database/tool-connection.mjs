@@ -2,7 +2,7 @@
  * The only way the operator tools (migrate, verify, seeds, stamp) open a
  * database connection. Enforces the P1.3 environment contract:
  *
- *   1. JBOX_ENVIRONMENT must be declared.
+ *   1. ASCEND_ENVIRONMENT must be declared.
  *   2. Before connecting, the target must belong to that environment
  *      (loopback for development/ci/test; a Neon endpoint registered under it
  *      in config/database-environments.json otherwise). Production is refused
@@ -50,7 +50,7 @@ export async function connectForTool({ tool, allowProduction = false, stamp = 'r
   let declared;
   let target;
   try {
-    declared = parseDeclaredEnvironment(process.env.JBOX_ENVIRONMENT);
+    declared = parseDeclaredEnvironment(process.env.ASCEND_ENVIRONMENT);
     target = assertToolTarget({
       declared,
       connectionString,

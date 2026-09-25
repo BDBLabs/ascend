@@ -38,7 +38,7 @@ promotion").
 4. Apply pending migrations to production **before** deploying code that needs them:
 
    ```bash
-   JBOX_ENVIRONMENT=production node --env-file=.env.neon.production.local \
+   ASCEND_ENVIRONMENT=production node --env-file=.env.neon.production.local \
      packages/database/migrate.mjs --production
    ```
 

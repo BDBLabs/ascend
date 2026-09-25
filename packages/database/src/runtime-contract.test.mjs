@@ -19,7 +19,7 @@ const registry = {
 };
 
 const neon = (endpoint, pooled = false) =>
-  `postgresql://jbox_owner:pw@${endpoint}${pooled ? '-pooler' : ''}.us-east-1.aws.neon.tech/jbox?sslmode=require`;
+  `postgresql://ascend_owner:pw@${endpoint}${pooled ? '-pooler' : ''}.us-east-1.aws.neon.tech/ascend?sslmode=require`;
 
 describe('describeDatabaseUrl', () => {
   it('extracts the Neon endpoint id from direct and pooled hosts', () => {
@@ -28,8 +28,8 @@ describe('describeDatabaseUrl', () => {
   });
 
   it('recognises loopback and unknown hosts', () => {
-    expect(describeDatabaseUrl('postgresql://u:p@localhost:5432/jbox').kind).toBe('local');
-    expect(describeDatabaseUrl('postgresql://u:p@db.example.com/jbox').kind).toBe('other');
+    expect(describeDatabaseUrl('postgresql://u:p@localhost:5432/ascend').kind).toBe('local');
+    expect(describeDatabaseUrl('postgresql://u:p@db.example.com/ascend').kind).toBe('other');
   });
 });
 
@@ -67,13 +67,13 @@ describe('assertToolTarget (pre-connect)', () => {
   });
 
   it('only lets local environments use a loopback database', () => {
-    expect(assertToolTarget({ declared: 'ci', connectionString: 'postgresql://u:p@localhost/jbox', registry, tool: 'verify' }).kind).toBe('local');
-    expect(() => assertToolTarget({ declared: 'preview', connectionString: 'postgresql://u:p@localhost/jbox', registry, tool: 'verify' }))
+    expect(assertToolTarget({ declared: 'ci', connectionString: 'postgresql://u:p@localhost/ascend', registry, tool: 'verify' }).kind).toBe('local');
+    expect(() => assertToolTarget({ declared: 'preview', connectionString: 'postgresql://u:p@localhost/ascend', registry, tool: 'verify' }))
       .toThrow(EnvironmentGuardError);
   });
 
   it('refuses arbitrary hosts', () => {
-    expect(() => assertToolTarget({ declared: 'development', connectionString: 'postgresql://u:p@db.example.com/jbox', registry, tool: 'verify' }))
+    expect(() => assertToolTarget({ declared: 'development', connectionString: 'postgresql://u:p@db.example.com/ascend', registry, tool: 'verify' }))
       .toThrow(/not a registered database host/);
   });
 });
@@ -97,13 +97,13 @@ describe('resolveRuntimeEnvironment', () => {
   });
 
   it('refuses an explicit declaration that contradicts Vercel', () => {
-    expect(() => resolveRuntimeEnvironment({ VERCEL_ENV: 'production', JBOX_ENVIRONMENT: 'development' }))
+    expect(() => resolveRuntimeEnvironment({ VERCEL_ENV: 'production', ASCEND_ENVIRONMENT: 'development' }))
       .toThrow(/contradicts/);
   });
 
   it('requires a declaration for a production build off Vercel (Fly)', () => {
     expect(() => resolveRuntimeEnvironment({ NODE_ENV: 'production' })).toThrow(EnvironmentGuardError);
-    expect(resolveRuntimeEnvironment({ NODE_ENV: 'production', JBOX_ENVIRONMENT: 'production' })).toBe('production');
+    expect(resolveRuntimeEnvironment({ NODE_ENV: 'production', ASCEND_ENVIRONMENT: 'production' })).toBe('production');
   });
 
   it('defaults local processes to development', () => {
@@ -118,7 +118,7 @@ describe('assertRuntimeTarget', () => {
   });
 
   it('refuses a deployed environment on loopback', () => {
-    expect(() => assertRuntimeTarget({ declared: 'production', connectionString: 'postgresql://u:p@127.0.0.1/jbox', registry }))
+    expect(() => assertRuntimeTarget({ declared: 'production', connectionString: 'postgresql://u:p@127.0.0.1/ascend', registry }))
       .toThrow(EnvironmentGuardError);
   });
 });
@@ -131,6 +131,6 @@ describe('pgConnectionConfig', () => {
   });
 
   it('uses plaintext only on loopback', () => {
-    expect(pgConnectionConfig('postgresql://u:p@localhost:5432/jbox').ssl).toBe(false);
+    expect(pgConnectionConfig('postgresql://u:p@localhost:5432/ascend').ssl).toBe(false);
   });
 });

@@ -98,7 +98,7 @@ Not prototype ports — new capabilities built in this repository after cutover 
 Both apps are deployed on Vercel (team `bagel-tech`); production points at the protected (once
 Neon protection is enabled) `production` branch.
 
-- **Product** — `jbox-product`, `usejbox.com` (auto-deploys on git push). Env wired: DB URLs,
+- **Product** — `ascend-product`, `useascend.com` (auto-deploys on git push). Env wired: DB URLs,
   control-plane URL, cron/customer-link/field/provision secrets, `NVIDIA_API_KEY`.
 - **Control** — project `control` (rootDirectory `apps/control`), `control.bageltech.net`,
   deploy from the repo root (`vercel --prod`). Env: `CONTROL_DATABASE_URL`, `CONTROL_API_TOKEN`.

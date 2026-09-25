@@ -17,7 +17,7 @@ vi.mock('pg', () => {
           const normalized = String(text).replace(/\s+/g, ' ').trim();
           // The one-time environment-stamp probe (P1.3) is not part of the
           // transaction under test; answer it from `behavior.stamp`.
-          if (normalized.includes('_jbox_environment')) {
+          if (normalized.includes('_ascend_environment')) {
             if (normalized.includes('to_regclass')) return { rows: [{ present: behavior.stamp !== null }] };
             return { rows: [{ environment: behavior.stamp }] };
           }

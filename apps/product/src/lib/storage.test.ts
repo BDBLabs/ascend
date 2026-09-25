@@ -15,7 +15,7 @@ describe('storage', () => {
   let dir: string;
 
   beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'jbox-storage-'));
+    dir = await mkdtemp(join(tmpdir(), 'ascend-storage-'));
     process.env.STORAGE_DIR = dir;
   });
 
@@ -75,7 +75,7 @@ describe('storage backend selection (fail closed)', () => {
 
   it('prefers the bucket whenever one is configured', () => {
     vi.stubEnv('VERCEL', '1');
-    vi.stubEnv('STORAGE_S3_BUCKET', 'jbox-photos');
+    vi.stubEnv('STORAGE_S3_BUCKET', 'ascend-photos');
     expect(storageBackend()).toBe('s3');
   });
 });
@@ -84,7 +84,7 @@ describe('S3-compatible backend', () => {
   const fetchMock = vi.fn();
 
   beforeEach(() => {
-    vi.stubEnv('STORAGE_S3_BUCKET', 'jbox-photos');
+    vi.stubEnv('STORAGE_S3_BUCKET', 'ascend-photos');
     vi.stubEnv('STORAGE_S3_REGION', 'us-east-1');
     vi.stubEnv('STORAGE_S3_ENDPOINT', 'https://objects.example.test');
     vi.stubEnv('STORAGE_S3_ACCESS_KEY_ID', 'AKIDEXAMPLE');
@@ -105,7 +105,7 @@ describe('S3-compatible backend', () => {
 
     const request = fetchMock.mock.calls[0][0] as Request;
     expect(request.method).toBe('PUT');
-    expect(request.url).toBe(`https://objects.example.test/jbox-photos/${key}`);
+    expect(request.url).toBe(`https://objects.example.test/ascend-photos/${key}`);
     expect(request.headers.get('authorization')).toMatch(/^AWS4-HMAC-SHA256 Credential=AKIDEXAMPLE\//);
     expect(request.headers.get('if-none-match')).toBe('*');
     expect(request.headers.get('content-type')).toBe('image/jpeg');

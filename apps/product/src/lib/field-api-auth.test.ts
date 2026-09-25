@@ -19,7 +19,7 @@ afterEach(() => {
   delete process.env.DEVELOPMENT_FIELD_ORGANIZATION_ID;
   delete process.env.NODE_ENV;
   delete process.env.VERCEL_ENV;
-  delete process.env.JBOX_ENVIRONMENT;
+  delete process.env.ASCEND_ENVIRONMENT;
   vi.restoreAllMocks();
 });
 
@@ -60,7 +60,7 @@ describe('resolveDevelopmentFieldPrincipal', () => {
 
   it('never resolves the demo principal on a production deployment, acknowledgement or not', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
-    for (const deployment of [{ VERCEL_ENV: 'production' }, { JBOX_ENVIRONMENT: 'production' }]) {
+    for (const deployment of [{ VERCEL_ENV: 'production' }, { ASCEND_ENVIRONMENT: 'production' }]) {
       setEnv({
         NODE_ENV: 'production',
         ...deployment,
@@ -70,7 +70,7 @@ describe('resolveDevelopmentFieldPrincipal', () => {
       });
       await expect(resolveDevelopmentFieldPrincipal()).resolves.toBeNull();
       delete process.env.VERCEL_ENV;
-      delete process.env.JBOX_ENVIRONMENT;
+      delete process.env.ASCEND_ENVIRONMENT;
     }
   });
 
@@ -97,7 +97,7 @@ describe('assertNoDemoPrincipalInProduction (startup invariant)', () => {
     expect(() => assertNoDemoPrincipalInProduction({ VERCEL_ENV: 'production', FIELD_DEMO_MODE: '1' } as NodeJS.ProcessEnv))
       .toThrow(/FIELD_DEMO_MODE/);
     expect(() => assertNoDemoPrincipalInProduction({
-      JBOX_ENVIRONMENT: 'production',
+      ASCEND_ENVIRONMENT: 'production',
       DEVELOPMENT_FIELD_ORGANIZATION_ID: ORG_ID,
     } as NodeJS.ProcessEnv)).toThrow(/DEVELOPMENT_FIELD_ORGANIZATION_ID/);
   });

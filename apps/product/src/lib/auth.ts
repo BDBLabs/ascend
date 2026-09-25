@@ -27,7 +27,7 @@ const scrypt = promisify(scryptCallback) as (
 /**
  * First-party Field authentication. Ports TrueTraining's auth-service pattern
  * (JWT with tenant + role claims, jti-keyed revocation, role-change revocation)
- * onto the jbox identity store:
+ * onto the ascend identity store:
  *
  *   - platform_users.password_hash is the credential (scrypt, not bcrypt: the
  *     same KDF discipline, built into Node, no native dependency).
@@ -47,8 +47,8 @@ const scrypt = promisify(scryptCallback) as (
  */
 
 export const FIELD_SESSION_COOKIE = 'field_session';
-export const FIELD_TOKEN_ISSUER = 'usejbox:field';
-export const FIELD_TOKEN_AUDIENCE = 'usejbox:field';
+export const FIELD_TOKEN_ISSUER = 'useascend:field';
+export const FIELD_TOKEN_AUDIENCE = 'useascend:field';
 
 // Password policy (P2.3). New passwords: 12-256 characters, not the email or
 // its local part, not a well-known password. Any submitted password over

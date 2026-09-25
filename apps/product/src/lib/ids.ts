@@ -1,5 +1,5 @@
 /**
- * Shared identifiers. jbox addresses every record by its internal uuid, so a
+ * Shared identifiers. ascend addresses every record by its internal uuid, so a
  * route that does not recognize an id format returns "not found" instead of
  * reaching the database with a malformed WHERE clause.
  */

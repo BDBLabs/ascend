@@ -71,7 +71,7 @@ function asNumber(value: unknown) {
   return Number.isFinite(number) ? number : 0;
 }
 
-/** jbox categories carry no code column; a stable slug is derived from the name. */
+/** ascend categories carry no code column; a stable slug is derived from the name. */
 function categorySlug(name: string) {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 }

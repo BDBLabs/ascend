@@ -10,7 +10,7 @@ import { getScheduleTool } from './schedule';
  * authorization/execution protocol; the product owns the tools and domain
  * capabilities exposed to an AI actor.
  */
-export function createJBoxAiToolRegistry(): AiToolRegistry {
+export function createAscendAiToolRegistry(): AiToolRegistry {
   const registry = new AiToolRegistry();
   registry.register(searchCustomersTool);
   registry.register(getCustomerTool);

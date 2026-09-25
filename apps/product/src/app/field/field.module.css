@@ -655,7 +655,7 @@
 }
 
 /* --- Field estimator ------------------------------------------------------ */
-/* Ported from the prototype estimator; colors adapted to jbox tokens. */
+/* Ported from the prototype estimator; colors adapted to ascend tokens. */
 
 @keyframes fadeIn {
   from { opacity: 0; }

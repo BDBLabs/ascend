@@ -4,7 +4,7 @@
 **Version:** 0.3
 **Status:** Platform architecture — supersedes v0.2
 **Platform name:** JunctionBox
-**Platform apex:** `usejbox.com`
+**Platform apex:** `useascend.com`
 **Brand relationship:** A BagelTech product
 **Reference tenant:** Paris Electric Inc., licensed electrical contractor, Suffolk County, New York
 **Prepared by:** BDB Labs / BagelTech
@@ -77,7 +77,7 @@ The monorepo separates operator concerns from tenant concerns.
 
 | Plane | Path | Audience | Responsibility |
 |---|---|---|---|
-| **Portal** | `apps/portal` | Prospective electrical contractors | `usejbox.com` marketing, six starting directions, AI-assisted guided setup, and signed onboarding handoff |
+| **Portal** | `apps/portal` | Prospective electrical contractors | `useascend.com` marketing, six starting directions, AI-assisted guided setup, and signed onboarding handoff |
 | **Control** | `apps/control` | BagelTech operators | Organization lifecycle, provisioning, onboarding requests, support grants, operator dashboard |
 | **Product** | `apps/product` | Tenants and their customers | Storefront, Field, customer documents, billing, intake |
 
@@ -203,8 +203,8 @@ state transition.
 - **Billing:** Stripe subscription lifecycle (migration 032), checkout and
   customer portal routes.
 - **Intake:** migration 040 and the legacy BagelTech v1 integration remain
-  intact. Migration 044 adds the canonical `usejbox.com` source, `JBX-*`
-  receipts, exact `*.usejbox.com` hostname binding, and the separately signed
+  intact. Migration 044 adds the canonical `useascend.com` source, `ASC-*`
+  receipts, exact `*.useascend.com` hostname binding, and the separately signed
   `/api/integrations/v1/junctionbox/onboarding-requests` route. The shared
   `packages/onboarding` contract keeps the Portal and Control parsers aligned.
 - **Support:** time-boxed contractor support-access grants (migration 039), so
@@ -306,8 +306,8 @@ required step in provisioning rather than a silent default.
 ### 4.5 Reference tenant still hosted on the parent brand's domain
 
 Paris Electric's canonical hostname is still `pariselectric.bageltech.net`.
-The product boundary is now resolved at `usejbox.com`, and new platform
-subdomains use `<organization>.usejbox.com`. Moving the reference tenant is a
+The product boundary is now resolved at `useascend.com`, and new platform
+subdomains use `<organization>.useascend.com`. Moving the reference tenant is a
 separate verified-domain migration; no application path may silently rewrite
 its live hostname.
 
@@ -411,12 +411,12 @@ The current dedicated procedure is intentionally reviewed and human-gated.
 The Portal removes the blank-form problem without pretending external
 resources already exist:
 
-1. A contractor at `usejbox.com` chooses one of six starting directions,
+1. A contractor at `useascend.com` chooses one of six starting directions,
    supplies colors and business details, and uses the AI-assisted studio to
    produce a constrained website blueprint.
 2. The Portal validates the public v1 contract, signs the exact integration
    payload, and hands it to the Control plane.
-3. Migration 044 stores a source-bound, immutable request with a `JBX-*`
+3. Migration 044 stores a source-bound, immutable request with a `ASC-*`
    receipt. A replay with the same idempotency key and payload is safe; changed
    details conflict.
 4. A platform administrator reviews the business details, services, domain,
@@ -521,7 +521,7 @@ Architectural implications regardless of final pricing:
 ## 7. Sequencing
 
 **Phase 1 — Dedicated first sale.**
-Operate `usejbox.com` as the JunctionBox Portal, apply the selected 040/043/044
+Operate `useascend.com` as the JunctionBox Portal, apply the selected 040/043/044
 intake sequence without 041/042, verify the signed handoff, and provision a
 second dedicated contractor from one reviewed request without source changes.
 Complete identity, domain, sender, private storage, backup, and smoke-test
@@ -566,7 +566,7 @@ silent cross-tenant writes matter at 2.
 ## 9. Open decisions
 
 **9.1 Platform name — RESOLVED.** The platform is **JunctionBox**, apex domain
-`usejbox.com`, endorsed as **A BagelTech product**. Surface naming follows the
+`useascend.com`, endorsed as **A BagelTech product**. Surface naming follows the
 structural split: **JunctionBox Portal** (`apps/portal`), **JunctionBox
 Control** (`apps/control`), **JunctionBox Storefront** (contractor public
 sites), and **JunctionBox Field** (`/field`).
@@ -577,22 +577,22 @@ verticals, and keeping brand decoupled from package identity is precisely the
 property that made this rename cheap. Do not rename the scope.
 
 **9.1a Wildcard TLS is a sequencing constraint.** The Tier 1 subdomain tier
-requires a wildcard certificate for `*.usejbox.com`.
+requires a wildcard certificate for `*.useascend.com`.
 
 - Wildcard certificates require the DNS-01 ACME challenge; HTTP-01 cannot
   validate them. The DNS zone must therefore be delegated to a provider that
   can write challenge records programmatically, which for this stack means
   delegating nameservers to Vercel rather than pointing an A record at it from
   the registrar. Registrar of record is Spaceship, Inc.
-- A wildcard covers exactly one label. `acme.usejbox.com` is covered;
-  `field.acme.usejbox.com` is not. **Keep tenant hostnames at a single level.**
+- A wildcard covers exactly one label. `acme.useascend.com` is covered;
+  `field.acme.useascend.com` is not. **Keep tenant hostnames at a single level.**
   The current structure already satisfies this — `/field` is a path, not a
   subdomain — so this is a property to preserve rather than a change to make.
 - Local multi-tenant subdomain testing needs locally trusted certificates.
 - Certificate renewal failure is a tenant outage. Monitor expiry per hostname.
 
 **9.1b Tier 1 subdomains are staging, not a permanent home — revises §5.1.**
-`pariselectric.usejbox.com` reads as a platform URL rather than the web address
+`pariselectric.useascend.com` reads as a platform URL rather than the web address
 of an established local business. For a Storefront whose entire purpose is
 projecting credibility to a homeowner comparing three contractors, that is a
 real cost.

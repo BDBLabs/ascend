@@ -199,7 +199,7 @@ const isUniqueViolation = (error: unknown) =>
   && (error as { code?: string }).code === '23505';
 
 /**
- * Freezes a signed estimate into a jbox invoice: one invoice per estimate
+ * Freezes a signed estimate into a ascend invoice: one invoice per estimate
  * (invoices_estimate_id_uniq), a faithful copy of the header, lines, and
  * persisted totals, and both audit histories recording the freeze. The estimate
  * row itself is never touched, so an existing editor's expectedUpdatedAt

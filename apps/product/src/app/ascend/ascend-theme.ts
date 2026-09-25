@@ -1,5 +1,5 @@
 /**
- * Ascend workspace theme. Self-contained (not imported from jbox-tokens)
+ * Ascend workspace theme. Self-contained (not imported from ascend-tokens)
  * so the Phase 8 rebrand touches only this workspace.
  */
 import type { CSSProperties } from 'react';

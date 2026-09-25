@@ -334,9 +334,11 @@ export async function addCustomDomain(
     throw new Error('hostname already in use');
   }
 
-  // Check if this is a *.usejbox.com subdomain (reserved)
-  if (hostname.endsWith('.usejbox.com')) {
-    throw new Error('cannot add *.usejbox.com subdomains as custom domains');
+  // Check if this is a tenant subdomain of the platform base domain (reserved)
+  const platformBaseDomain =
+    (process.env.PLATFORM_BASE_DOMAIN ?? '').trim().toLowerCase() || 'useascend.com';
+  if (hostname.endsWith(`.${platformBaseDomain}`)) {
+    throw new Error(`cannot add *.${platformBaseDomain} subdomains as custom domains`);
   }
 
   const [rows] = await provision([
@@ -369,7 +371,7 @@ export async function addCustomDomain(
 
 /**
  * Removes a custom domain from an organization. Cannot remove the canonical
- * domain (the *.usejbox.com subdomain used during provisioning).
+ * domain (the tenant subdomain used during provisioning).
  */
 export async function removeCustomDomain(
   organizationId: string,

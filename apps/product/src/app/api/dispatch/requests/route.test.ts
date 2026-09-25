@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 const { queryMock, configuredMock, hostMock, tenantMock, rateLimitMock } = vi.hoisted(() => ({
   queryMock: vi.fn(),
   configuredMock: vi.fn(() => true),
-  hostMock: vi.fn(() => 'paris.usejbox.com'),
+  hostMock: vi.fn(() => 'paris.useascend.com'),
   tenantMock: vi.fn(),
   rateLimitMock: vi.fn(async () => true),
 }));
@@ -47,7 +47,7 @@ describe('dispatch ticket creation', () => {
     queryMock.mockReset();
     configuredMock.mockReset();
     configuredMock.mockReturnValue(true);
-    hostMock.mockReturnValue('paris.usejbox.com');
+    hostMock.mockReturnValue('paris.useascend.com');
     rateLimitMock.mockResolvedValue(true);
     tenantMock.mockReset();
     tenantMock.mockImplementation(async (work: (tenant: unknown) => Promise<unknown>) =>
@@ -55,7 +55,7 @@ describe('dispatch ticket creation', () => {
   });
 
   it('refuses intake on a non-tenant host before reading the body', async () => {
-    hostMock.mockReturnValue('usejbox.com');
+    hostMock.mockReturnValue('useascend.com');
     const response = await POST(postRequest(VALID_BODY));
     expect(response.status).toBe(404);
     expect(queryMock).not.toHaveBeenCalled();

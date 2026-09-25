@@ -15,7 +15,7 @@ export const dynamic = 'force-dynamic';
 
 const MAX_BODY_BYTES = 4096;
 
-// jbox customers are addressed by their internal uuid (migration 002), not the
+// ascend customers are addressed by their internal uuid (migration 002), not the
 // display id the prototype used. Anything that is not a well-formed uuid is a
 // "not found", not a database query.
 

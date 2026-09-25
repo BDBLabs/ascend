@@ -9,9 +9,9 @@ import { readFieldSessionToken, resolveStaffFromToken } from '@/lib/auth';
 import { runWithOrganizationContext } from '@/lib/organization-context-store';
 
 /**
- * Field API authorization for jbox.
+ * Field API authorization for ascend.
  *
- * jbox differs from the prototype in one structural way: there is no mutable
+ * ascend differs from the prototype in one structural way: there is no mutable
  * "current organization". Tenant context is established per subtree by
  * runWithOrganizationContext() (see lib/organization-context-store.ts), and the
  * database refuses unscoped writes. So resolving a principal and running the
@@ -79,7 +79,7 @@ export async function resolveJwtFieldPrincipal(): Promise<FieldPrincipal | null>
  *
  * PRODUCTION FAIL-CLOSED (P0.1):
  *   - A production DEPLOYMENT (VERCEL_ENV=production or
- *     JBOX_ENVIRONMENT=production) never serves the demo principal. There is
+ *     ASCEND_ENVIRONMENT=production) never serves the demo principal. There is
  *     no override; instrumentation.ts refuses to start such a process at all
  *     (assertNoDemoPrincipalInProduction).
  *   - Any other process built for production (a sandbox preview) serves it
@@ -87,7 +87,7 @@ export async function resolveJwtFieldPrincipal(): Promise<FieldPrincipal | null>
  * Otherwise this returns null (callers 401) and logs.
  */
 export function isProductionDeployment(env: NodeJS.ProcessEnv = process.env): boolean {
-  return env.VERCEL_ENV === 'production' || env.JBOX_ENVIRONMENT?.trim() === 'production';
+  return env.VERCEL_ENV === 'production' || env.ASCEND_ENVIRONMENT?.trim() === 'production';
 }
 
 /**

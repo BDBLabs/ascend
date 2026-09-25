@@ -6,7 +6,7 @@ Scope: estimate issue/sign/decline, customer links, immutable history, configura
 
 ## Verdict
 
-**The database prevents ordinary edits to a terminal estimate, but JBox cannot reproduce or verify the exact branded document a customer accepted.** The current property is “terminal estimate facts with a partial content hash,” not “immutable signed artifact.”
+**The database prevents ordinary edits to a terminal estimate, but Ascend cannot reproduce or verify the exact branded document a customer accepted.** The current property is “terminal estimate facts with a partial content hash,” not “immutable signed artifact.”
 
 ## Intended invariants
 

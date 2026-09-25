@@ -50,10 +50,10 @@ const syntheticFixtures = [
   'vercel_blob_rw_test',
   'postgres://control:test@localhost/control',
   // CI-only disposable service container (quality.yml isolation job).
-  'postgresql://jbox_owner:ci-only@localhost:5432/jbox',
-  'postgresql://jbox_runtime:ci-only@localhost:5432/jbox',
+  'postgresql://ascend_owner:ci-only@localhost:5432/ascend',
+  'postgresql://ascend_runtime:ci-only@localhost:5432/ascend',
   // Synthetic hosts in runtime-contract tests.
-  'postgresql://jbox_owner:pw@${endpoint}',
+  'postgresql://ascend_owner:pw@${endpoint}',
   'postgresql://u:p@',
 ];
 

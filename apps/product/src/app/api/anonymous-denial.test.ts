@@ -20,7 +20,7 @@ const databaseTouched = vi.hoisted(() => ({ count: 0 }));
 
 vi.mock('next/headers', () => ({
   cookies: async () => ({ get: () => undefined, getAll: () => [] }),
-  headers: async () => new Headers({ host: 'field.usejbox.com' }),
+  headers: async () => new Headers({ host: 'field.useascend.com' }),
 }));
 
 vi.mock('@/lib/db', () => {
@@ -102,7 +102,7 @@ describe('anonymous-denial matrix (P0.1)', () => {
       for (const method of exported) {
         databaseTouched.count = 0;
         const mutation = method !== 'GET';
-        const request = new NextRequest(`https://field.usejbox.com${route.path}`, {
+        const request = new NextRequest(`https://field.useascend.com${route.path}`, {
           method,
           headers: {
             'user-agent': 'curl/8.5.0',

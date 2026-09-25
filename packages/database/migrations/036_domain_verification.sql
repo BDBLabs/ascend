@@ -14,8 +14,8 @@
 -- Now:
 --   - each custom domain stores its verification token (public by design:
 --     it is published in DNS; what matters is that it is fixed per domain);
---   - the application proves the TXT record `_jbox-verify.<hostname>` =
---     `jbox-verify=<token>` exists before calling the mark-verified window,
+--   - the application proves the TXT record `_ascend-verify.<hostname>` =
+--     `ascend-verify=<token>` exists before calling the mark-verified window,
 --     which requires the stored token;
 --   - tenants add/verify/remove their OWN non-canonical domains only through
 --     SECURITY DEFINER windows scoped by app_require_organization_id();
@@ -37,7 +37,9 @@ REVOKE INSERT, UPDATE, DELETE ON organization_domains FROM contractor_app, platf
 
 -- migrate:split
 
-CREATE OR REPLACE FUNCTION tenant_domain_add(p_hostname text)
+-- p_platform_domain is the deployment's PLATFORM_BASE_DOMAIN: the platform
+-- and every tenant subdomain of it can never be claimed as a custom domain.
+CREATE OR REPLACE FUNCTION tenant_domain_add(p_hostname text, p_platform_domain text)
 RETURNS TABLE (id uuid, hostname text, verification_token text)
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -50,7 +52,10 @@ BEGIN
   IF v_host !~ '^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$' THEN
     RAISE EXCEPTION 'hostname is not a valid domain' USING ERRCODE = 'invalid_parameter_value';
   END IF;
-  IF v_host = 'usejbox.com' OR v_host LIKE '%.usejbox.com' THEN
+  IF p_platform_domain IS NULL OR btrim(p_platform_domain) = '' THEN
+    RAISE EXCEPTION 'platform domain is required' USING ERRCODE = 'invalid_parameter_value';
+  END IF;
+  IF v_host = lower(p_platform_domain) OR right(v_host, char_length(p_platform_domain) + 1) = '.' || lower(p_platform_domain) THEN
     RAISE EXCEPTION 'platform hostnames cannot be claimed' USING ERRCODE = 'invalid_parameter_value';
   END IF;
 
@@ -118,7 +123,7 @@ $$;
 -- migrate:split
 
 GRANT EXECUTE ON FUNCTION
-  tenant_domain_add(text),
+  tenant_domain_add(text, text),
   tenant_domain_challenge(uuid),
   tenant_domain_mark_verified(uuid, text),
   tenant_domain_remove(uuid)

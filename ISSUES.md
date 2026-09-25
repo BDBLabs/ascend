@@ -31,10 +31,10 @@ The root layout `apps/product/src/app/layout.tsx` has no `<meta name="viewport">
 
 ---
 
-## Issue 4: J-Box sidebar not collapsible on mobile
+## Issue 4: Ascend sidebar not collapsible on mobile
 **Labels:** bug, high, mobile
 **Description:**
-The J-Box sidebar is a fixed 256px panel with no hamburger/drawer toggle. On viewports under ~800px, the sidebar consumes most of the screen leaving content inaccessible.
+The Ascend sidebar is a fixed 256px panel with no hamburger/drawer toggle. On viewports under ~800px, the sidebar consumes most of the screen leaving content inaccessible.
 
 **Fix:** Add a hamburger button and overlay drawer pattern (following `field/mobile-menu-button.tsx`).
 
@@ -43,7 +43,7 @@ The J-Box sidebar is a fixed 256px panel with no hamburger/drawer toggle. On vie
 ## Issue 5: All data tables overflow on mobile
 **Labels:** bug, high, mobile
 **Description:**
-All J-Box list pages (jobs, customers, estimates, invoices, price-book) and detail pages render tables with no `overflow-x: auto` wrapper. Tables overflow horizontally on screens under ~700px.
+All Ascend list pages (jobs, customers, estimates, invoices, price-book) and detail pages render tables with no `overflow-x: auto` wrapper. Tables overflow horizontally on screens under ~700px.
 
 **Fix:** Wrap all `<table>` elements in `<div style={{ overflowX: 'auto' }}>`.
 
@@ -63,14 +63,14 @@ The `invoices` library has `createInvoiceFromEstimate` but no `issueInvoice`, `c
 **Description:**
 The `change-orders` library has full business logic (create, submit, approve, reject) but zero API routes, zero UI pages, no sidebar nav entry, and no status helpers. The field app links to `/field/estimates/[id]/change-order` which doesn't exist (broken link).
 
-**Fix:** Add API routes, J-Box list/detail pages, status label/color helpers, sidebar entry.
+**Fix:** Add API routes, Ascend list/detail pages, status label/color helpers, sidebar entry.
 
 ---
 
 ## Issue 8: `partially_paid` missing from STATUS_LABELS
-**Labels:** bug, medium, jbox
+**Labels:** bug, medium, ascend
 **Description:**
-`jbox-tokens.ts` `STATUS_LABELS` map has no entry for `partially_paid`. Invoices with this status display the raw key string instead of a readable label.
+`ascend-tokens.ts` `STATUS_LABELS` map has no entry for `partially_paid`. Invoices with this status display the raw key string instead of a readable label.
 
 **Fix:** Add `partially_paid: 'Partially Paid'` to `STATUS_LABELS` and `STATUS_BG`.
 
@@ -94,7 +94,7 @@ The price-book search input has `width: '280px'` which overflows on any viewport
 
 ---
 
-## Issue 11: J-Box card padding too generous on mobile
+## Issue 11: Ascend card padding too generous on mobile
 **Labels:** enhancement, medium, mobile
 **Description:**
 `card` token has `padding: '32px'`. On 320px viewport this consumes 20% of horizontal space. Needs responsive reduction to 16px.

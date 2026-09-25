@@ -14,7 +14,7 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 
 /**
  * POST /api/field/domains/[id]/verify — verify a custom domain by DNS.
- * The hostname must publish `_jbox-verify.<hostname> TXT jbox-verify=<token>`
+ * The hostname must publish `_ascend-verify.<hostname> TXT ascend-verify=<token>`
  * with the token stored when the domain was added (migration 036). Only then
  * is the tenant-scoped mark-verified window called, with that same token.
  */

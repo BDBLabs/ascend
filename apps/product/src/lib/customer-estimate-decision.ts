@@ -19,7 +19,7 @@ import {
  * Customer estimate decision. The customer opens a sign-purpose link from the
  * delivery email and chooses to approve (sign with their name) or decline.
  *
- * jbox has no version tables: the estimate itself is the document and the
+ * ascend has no version tables: the estimate itself is the document and the
  * grant's document_id is the estimate id. A decision rides the same transitions
  * the Field app uses — signEstimate()/declineEstimate() — plus consuming the
  * single-use grant. "Stale" (prototype) does not exist here: a re-issued link

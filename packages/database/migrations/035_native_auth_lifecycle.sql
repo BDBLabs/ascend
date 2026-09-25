@@ -192,7 +192,7 @@ BEGIN
     RAISE EXCEPTION 'auth_version is monotonic.' USING ERRCODE = 'integrity_constraint_violation';
   END IF;
   IF (NEW.password_hash IS DISTINCT FROM OLD.password_hash
-        AND coalesce(current_setting('jbox.password_rehash', true), '') <> 'on')
+        AND coalesce(current_setting('ascend.password_rehash', true), '') <> 'on')
      OR NEW.status IS DISTINCT FROM OLD.status
      OR NEW.identity_deleted_at IS DISTINCT FROM OLD.identity_deleted_at
      OR NEW.totp_secret IS DISTINCT FROM OLD.totp_secret
@@ -559,10 +559,10 @@ SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
 BEGIN
-  PERFORM set_config('jbox.password_rehash', 'on', true);
+  PERFORM set_config('ascend.password_rehash', 'on', true);
   UPDATE platform_users SET password_hash = p_new_hash, updated_at = now()
   WHERE id = p_user_id AND password_hash = p_expected_hash;
-  PERFORM set_config('jbox.password_rehash', 'off', true);
+  PERFORM set_config('ascend.password_rehash', 'off', true);
   RETURN FOUND;
 END;
 $$;

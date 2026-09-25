@@ -1,7 +1,7 @@
 /**
  * Re-stamps a database's environment identity (P1.3).
  *
- *   JBOX_ENVIRONMENT=development node --env-file=.env.local \
+ *   ASCEND_ENVIRONMENT=development node --env-file=.env.local \
  *     packages/database/stamp-environment.mjs --from=production
  *
  * A Neon child branch is a copy of its parent, stamp included: a development
@@ -9,7 +9,7 @@
  * Every tool (and both apps) refuse it until then, which is the point -- the
  * operator must say explicitly that this copy is no longer production.
  *
- * Guards: JBOX_ENVIRONMENT is the new stamp; the target endpoint must already
+ * Guards: ASCEND_ENVIRONMENT is the new stamp; the target endpoint must already
  * be registered under it (so the production endpoint itself can never be
  * re-stamped as something else); --from must equal the current stamp; and
  * nothing is ever re-stamped TO production.
@@ -35,7 +35,7 @@ if (!connectionString) refuse(tool, 'DATABASE_URL_OWNER is not set.', 2);
 
 let declared;
 try {
-  declared = parseDeclaredEnvironment(process.env.JBOX_ENVIRONMENT);
+  declared = parseDeclaredEnvironment(process.env.ASCEND_ENVIRONMENT);
   if (declared === 'production') {
     throw new EnvironmentGuardError('nothing is re-stamped to production; production is stamped by its first migration run.');
   }

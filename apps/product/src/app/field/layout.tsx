@@ -21,7 +21,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 /**
- * Field shell. Runs on the platform host (field.usejbox.com): tenant-free by
+ * Field shell. Runs on the platform host (field.useascend.com): tenant-free by
  * construction. Every request resolves its own principal — a first-party
  * session JWT when the staff member has signed in, otherwise the development
  * owner fallback in demo mode — and the pages under it do their own two-phase

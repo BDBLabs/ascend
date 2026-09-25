@@ -1,8 +1,8 @@
 /**
  * P2 exit evidence at the application layer: the real auth.ts against a real
- * PostgreSQL built by the migration runner, through the jbox_runtime login.
+ * PostgreSQL built by the migration runner, through the ascend_runtime login.
  *
- * Runs when INTEGRATION_DATABASE_URL (jbox_runtime) and INTEGRATION_OWNER_URL
+ * Runs when INTEGRATION_DATABASE_URL (ascend_runtime) and INTEGRATION_OWNER_URL
  * (owner, for fixtures and operator actions as control_app) are set -- the CI
  * isolation job sets both. Skipped otherwise.
  */
@@ -48,7 +48,7 @@ describe.skipIf(!runtimeUrl || !ownerUrl)('native auth lifecycle (real database)
 
   beforeAll(async () => {
     process.env.DATABASE_URL = runtimeUrl;
-    process.env.JBOX_ENVIRONMENT = process.env.JBOX_ENVIRONMENT ?? 'ci';
+    process.env.ASCEND_ENVIRONMENT = process.env.ASCEND_ENVIRONMENT ?? 'ci';
     process.env.FIELD_AUTH_SECRET = 'i'.repeat(48);
     process.env.FIELD_AUTH_KEY_VERSION = 'v1';
     auth = await import('@/lib/auth');

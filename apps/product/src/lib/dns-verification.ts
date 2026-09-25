@@ -2,12 +2,12 @@ import { resolveTxt } from 'node:dns/promises';
 
 /**
  * Custom-domain ownership proof: the domain's DNS must publish
- *   _jbox-verify.<hostname>  TXT  "jbox-verify=<token>"
+ *   _ascend-verify.<hostname>  TXT  "ascend-verify=<token>"
  * with the token stored for that domain (migration 036). Nothing else marks a
  * custom hostname verified, because a verified hostname IS the tenant boundary.
  */
 export function verificationRecord(hostname: string, token: string) {
-  return { name: `_jbox-verify.${hostname}`, value: `jbox-verify=${token}` };
+  return { name: `_ascend-verify.${hostname}`, value: `ascend-verify=${token}` };
 }
 
 export async function hasVerificationRecord(

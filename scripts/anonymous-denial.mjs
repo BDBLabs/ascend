@@ -2,8 +2,8 @@
  * P0.1 exit evidence against a DEPLOYED environment: the anonymous GET and
  * mutation matrix over every Field and Ascend workspace route.
  *
- *   node scripts/anonymous-denial.mjs https://field.usejbox.com            # GETs only
- *   node scripts/anonymous-denial.mjs https://field.usejbox.com --mutations # + forged-Origin mutations
+ *   node scripts/anonymous-denial.mjs https://field.useascend.com            # GETs only
+ *   node scripts/anonymous-denial.mjs https://field.useascend.com --mutations # + forged-Origin mutations
  *
  * Routes are discovered from apps/product/src/app/api/{field,ascend}, so the
  * matrix always matches the code being deployed. Requests carry no cookie and
@@ -59,7 +59,7 @@ for (const file of ['field', 'ascend'].flatMap((area) => routeFiles(join(API_ROO
         method,
         redirect: 'manual',
         headers: {
-          'user-agent': 'jbox-anonymous-denial/1.0',
+          'user-agent': 'ascend-anonymous-denial/1.0',
           ...(mutation ? { origin: 'https://attacker.example', 'content-type': 'application/json' } : {}),
         },
         body: mutation ? '{"probe":true}' : undefined,

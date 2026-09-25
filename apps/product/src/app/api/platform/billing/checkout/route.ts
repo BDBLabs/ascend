@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
     return privateJson({ error: 'organizationId and slug are required' }, 400);
   }
 
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? 'https://usejbox.com';
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? 'https://useascend.com';
 
   try {
     const { url } = await createCheckoutSession({

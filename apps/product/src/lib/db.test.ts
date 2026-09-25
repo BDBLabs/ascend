@@ -15,7 +15,7 @@ vi.mock('pg', () => {
         query: async (text: string) => {
           const normalized = String(text).replace(/\s+/g, ' ').trim();
           // The one-time environment-stamp probe is not part of the transaction.
-          if (normalized.includes('_jbox_environment')) return { rows: [] };
+          if (normalized.includes('_ascend_environment')) return { rows: [] };
           statements.push(normalized);
           if (behavior.failOn && normalized.includes(behavior.failOn)) {
             throw new Error('boom');
@@ -43,7 +43,7 @@ beforeEach(() => {
   statements.length = 0;
   released.count = 0;
   behavior.failOn = undefined;
-  process.env.DATABASE_URL = 'postgresql://jbox_runtime@example.test/jbox';
+  process.env.DATABASE_URL = 'postgresql://ascend_runtime@example.test/ascend';
   vi.resetModules();
 });
 

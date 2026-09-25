@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { AiError } from '@contractor-platform/ai';
-import { listJBoxAiTools, invokeJBoxAiTool } from './ai-agent';
+import { listAscendAiTools, invokeAscendAiTool } from './ai-agent';
 import type { AiActorIdentity } from './ai-actor-context';
 import {
   addMessage,
@@ -52,7 +52,7 @@ type LlmResponse = {
   usage?: { prompt_tokens?: number; completion_tokens?: number };
 };
 
-const SYSTEM_PROMPT = `You are J-Box Assistant, an AI helper for trade contractors (electrical, plumbing, HVAC, general).
+const SYSTEM_PROMPT = `You are Ascend Assistant, an AI helper for trade contractors (electrical, plumbing, HVAC, general).
 
 You have access to tools that search the business's customers, estimates, and work schedule.
 Use tools when the user asks about specific business data. Always cite the data you find.
@@ -65,7 +65,7 @@ Rules:
 - For urgent safety issues, tell the user to call their supervisor immediately.`;
 
 function buildToolSchemas(): LlmTool[] {
-  const tools = listJBoxAiTools();
+  const tools = listAscendAiTools();
   return tools.map((t) => ({
     type: 'function' as const,
     function: {
@@ -255,7 +255,7 @@ export async function runAgentLoop(
 
         let result: unknown;
         try {
-          result = await invokeJBoxAiTool(identity, {
+          result = await invokeAscendAiTool(identity, {
             toolName: tc.function.name,
             input: args,
           });

@@ -4,11 +4,11 @@
  * apps use one implementation.
  *
  * 1. Environment identity (P1.3). Every process declares which environment it
- *    targets (JBOX_ENVIRONMENT, or derived from VERCEL_ENV/NODE_ENV for apps).
+ *    targets (ASCEND_ENVIRONMENT, or derived from VERCEL_ENV/NODE_ENV for apps).
  *    Two independent checks then refuse a cross-environment connection:
  *      - before connecting: a Neon endpoint must be registered under the
  *        declared environment in config/database-environments.json;
- *      - after connecting: the database's own stamp (_jbox_environment, written
+ *      - after connecting: the database's own stamp (_ascend_environment, written
  *        by the first migration run) must equal the declared environment.
  *    A development process pointed at production therefore fails before it
  *    reads or writes anything.
@@ -32,7 +32,7 @@ export class EnvironmentGuardError extends Error {
   }
 }
 
-export const STAMP_TABLE = '_jbox_environment';
+export const STAMP_TABLE = '_ascend_environment';
 
 export function isLoopbackHost(hostname) {
   return ['localhost', '127.0.0.1', '::1', '[::1]'].includes(hostname) || hostname.startsWith('/');
@@ -63,19 +63,19 @@ export function parseDeclaredEnvironment(value) {
   const declared = (value ?? '').trim();
   if (!declared) {
     throw new EnvironmentGuardError(
-      'JBOX_ENVIRONMENT is not set. Declare the environment this command targets '
+      'ASCEND_ENVIRONMENT is not set. Declare the environment this command targets '
       + `(${ENVIRONMENTS.join(', ')}); see docs/DATABASE_SETUP.md#environment-identity.`,
     );
   }
   if (!ENVIRONMENTS.includes(declared)) {
-    throw new EnvironmentGuardError(`JBOX_ENVIRONMENT=${declared} is not one of ${ENVIRONMENTS.join(', ')}.`);
+    throw new EnvironmentGuardError(`ASCEND_ENVIRONMENT=${declared} is not one of ${ENVIRONMENTS.join(', ')}.`);
   }
   return declared;
 }
 
 /**
  * The environment a deployed/running application is in. An explicit
- * JBOX_ENVIRONMENT wins but must agree with the platform's own signal: a
+ * ASCEND_ENVIRONMENT wins but must agree with the platform's own signal: a
  * Vercel production deployment can never declare itself development.
  */
 export function resolveRuntimeEnvironment(env) {
@@ -84,12 +84,12 @@ export function resolveRuntimeEnvironment(env) {
     : vercel === 'preview' ? 'preview'
     : vercel === 'development' ? 'development'
     : null;
-  const explicit = env.JBOX_ENVIRONMENT?.trim();
+  const explicit = env.ASCEND_ENVIRONMENT?.trim();
   if (explicit) {
     const declared = parseDeclaredEnvironment(explicit);
     if (platform && platform !== declared) {
       throw new EnvironmentGuardError(
-        `JBOX_ENVIRONMENT=${declared} contradicts VERCEL_ENV=${vercel}.`,
+        `ASCEND_ENVIRONMENT=${declared} contradicts VERCEL_ENV=${vercel}.`,
       );
     }
     return declared;
@@ -98,7 +98,7 @@ export function resolveRuntimeEnvironment(env) {
   if (env.NODE_ENV === 'test') return 'test';
   if (env.NODE_ENV === 'production') {
     throw new EnvironmentGuardError(
-      'A production build outside Vercel must declare JBOX_ENVIRONMENT.',
+      'A production build outside Vercel must declare ASCEND_ENVIRONMENT.',
     );
   }
   return 'development';
@@ -132,7 +132,7 @@ export function assertToolTarget({ declared, connectionString, registry, tool, a
   if (target.kind === 'local') {
     if (!LOCAL_ENVIRONMENTS.has(declared)) {
       throw new EnvironmentGuardError(
-        `JBOX_ENVIRONMENT=${declared} cannot target a loopback database.`,
+        `ASCEND_ENVIRONMENT=${declared} cannot target a loopback database.`,
       );
     }
     return target;
@@ -151,7 +151,7 @@ export function assertToolTarget({ declared, connectionString, registry, tool, a
   }
   if (owner !== declared) {
     throw new EnvironmentGuardError(
-      `endpoint ${target.endpointId} belongs to ${owner}, but JBOX_ENVIRONMENT=${declared}. `
+      `endpoint ${target.endpointId} belongs to ${owner}, but ASCEND_ENVIRONMENT=${declared}. `
       + 'Refusing a cross-environment run.',
     );
   }
@@ -181,14 +181,14 @@ export function assertRuntimeTarget({ declared, connectionString, registry }) {
 
 /**
  * Post-connect check against the database's own stamp.
- *   stamp     value read from _jbox_environment (null when absent)
+ *   stamp     value read from _ascend_environment (null when absent)
  *   required  whether an absent stamp is itself a refusal
  */
 export function assertStamp({ stamp, declared, required }) {
   if (stamp == null) {
     if (required) {
       throw new EnvironmentGuardError(
-        `This database carries no environment stamp; run the migration runner with JBOX_ENVIRONMENT=${declared} first.`,
+        `This database carries no environment stamp; run the migration runner with ASCEND_ENVIRONMENT=${declared} first.`,
       );
     }
     return;

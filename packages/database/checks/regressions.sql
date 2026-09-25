@@ -164,7 +164,7 @@ DECLARE
 BEGIN
   PERFORM set_application_context('c0c0c0c0-0000-0000-0000-00000000000a'::uuid, NULL, gen_random_uuid());
   SET LOCAL ROLE contractor_app;
-  SELECT * INTO added FROM tenant_domain_add('Regress-Alpha.example');
+  SELECT * INTO added FROM tenant_domain_add('Regress-Alpha.example', 'useascend.com');
   IF added.verification_token IS NULL OR added.hostname <> 'regress-alpha.example' THEN
     RAISE EXCEPTION 'A new custom domain carried no verification token.';
   END IF;
@@ -184,7 +184,7 @@ BEGIN
     RAISE EXCEPTION 'contractor_app can still update organization_domains directly.';
   END IF;
   BEGIN
-    PERFORM * FROM tenant_domain_add('beta.usejbox.com');
+    PERFORM * FROM tenant_domain_add('beta.useascend.com', 'useascend.com');
     raised := false;
   EXCEPTION WHEN invalid_parameter_value THEN
     raised := true;
