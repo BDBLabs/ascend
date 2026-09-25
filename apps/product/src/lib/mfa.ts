@@ -31,8 +31,25 @@ export function getTotpUri(email: string, secret: string): string {
  * Allows ±1 window for clock skew.
  */
 export function verifyTotpToken(token: string, secret: string): boolean {
-  if (!token || !secret) return false;
-  return verifySync({ token, secret, epochTolerance: TOTP_WINDOW * 30 }).valid;
+  return verifyTotpStep(token, secret) !== null;
+}
+
+/**
+ * Verifies a code and returns the 30-second time step it belongs to, or null.
+ * The step is what makes a code single-use: callers record it through
+ * staff_mfa_consume_step / staff_mfa_complete, which refuse a step at or
+ * below the last one used.
+ */
+export function verifyTotpStep(token: string, secret: string): number | null {
+  if (!/^\d{6}$/.test(token ?? '') || !secret) return null;
+  // otplib reports `timeStep` as the step of the MATCHED window (with `delta`
+  // its offset from now), so it is the step to record.
+  const result = verifySync({ token, secret, epochTolerance: TOTP_WINDOW * 30 }) as {
+    valid: boolean;
+    timeStep?: number;
+  };
+  if (!result.valid || typeof result.timeStep !== 'number') return null;
+  return result.timeStep;
 }
 
 /**

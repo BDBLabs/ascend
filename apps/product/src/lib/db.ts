@@ -1,12 +1,14 @@
 import 'server-only';
 
 import pg from 'pg';
+import { createRuntimeGuard, ENVIRONMENT_REGISTRY } from '@contractor-platform/database';
 import { requireOrganizationContext } from '@/lib/organization-context-store';
 
 type QueryRows = Array<Record<string, unknown>>;
 type Statement = { text: string; values: readonly unknown[] };
 
 let pool: pg.Pool | null = null;
+let guard: ReturnType<typeof createRuntimeGuard> | null = null;
 let tenantClient: ScopedSql | null = null;
 let platformClient: ScopedSql | null = null;
 
@@ -15,27 +17,52 @@ export function isDatabaseConfigured() {
 }
 
 /**
- * One pool for the process lifetime.
+ * Connection budget (P4.3).
  *
- * This is the payoff for running as a long-lived server rather than per-request
- * functions: connections are established once and reused, so the database sees
- * a small stable set of backends instead of a new one per invocation. It also
- * means we connect to Neon's DIRECT endpoint -- the pooled endpoint exists to
- * solve the problem this pool now solves, and stacking them adds a hop for
- * nothing.
+ * Long-lived server (Fly / `next start`): one pool of DATABASE_POOL_MAX
+ * (default 10) on the DIRECT endpoint for the process lifetime.
  *
- * The direct endpoint lives in DATABASE_URL_UNPOOLED (the provisioned
- * DATABASE_URL is pooled); the fallback keeps a lone DATABASE_URL working for
- * setups that never provisioned a separate unpooled value.
+ * Serverless (Vercel): every concurrent function instance holds its own pool,
+ * so the database sees instances x pool size. There the pool connects to the
+ * POOLED endpoint (DATABASE_URL, Neon's PgBouncer in transaction mode) with a
+ * small default of 3 and a short idle timeout. Transaction pooling is safe
+ * here because every unit of work is one BEGIN..COMMIT with SET LOCAL role and
+ * set_application_context(..., true) -- nothing is session-scoped.
+ *
+ * Budget: instances x DATABASE_POOL_MAX client connections must stay under the
+ * pooler's client limit, and the pooler's server pool under the compute's
+ * max_connections. See DEPLOYMENT.md (Runtime contract).
  */
+export function poolSettings(env: NodeJS.ProcessEnv = process.env) {
+  const serverless = Boolean(env.VERCEL);
+  const connectionString = serverless
+    ? env.DATABASE_URL ?? env.DATABASE_URL_UNPOOLED
+    : env.DATABASE_URL_UNPOOLED ?? env.DATABASE_URL;
+  const configuredMax = Number(env.DATABASE_POOL_MAX);
+  return {
+    connectionString,
+    max: Number.isInteger(configuredMax) && configuredMax > 0 ? configuredMax : serverless ? 3 : 10,
+    idleTimeoutMillis: serverless ? 5_000 : 30_000,
+  };
+}
+
 function connectionPool() {
-  const connectionString = process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL;
+  const settings = poolSettings();
+  const connectionString = settings.connectionString;
   if (!connectionString) throw new Error('DATABASE_URL is not configured.');
   if (!pool) {
-    pool = new pg.Pool({
+    // Environment identity (P1.3) + explicit TLS, verify-full off loopback
+    // (P4.3). Throws before the pool exists when the endpoint belongs to
+    // another environment; the stamp is checked on the first connection.
+    guard = createRuntimeGuard({
       connectionString,
-      max: Number(process.env.DATABASE_POOL_MAX ?? 10),
-      idleTimeoutMillis: 30_000,
+      env: process.env,
+      registry: ENVIRONMENT_REGISTRY,
+    });
+    pool = new pg.Pool({
+      ...guard.config,
+      max: settings.max,
+      idleTimeoutMillis: settings.idleTimeoutMillis,
       connectionTimeoutMillis: 10_000,
     });
   }
@@ -101,6 +128,7 @@ function createRoleExecutor(
   return async (statements) => {
     const client = await connectionPool().connect();
     try {
+      await guard?.verifyStamp(client);
       await client.query('BEGIN');
       await client.query(`SET LOCAL ROLE ${role}`);
       for (const statement of prelude()) {

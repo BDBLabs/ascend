@@ -9,10 +9,13 @@ export function EstimateDecisionForm({
   token,
   intent,
   companyName,
+  consentText,
 }: {
   token: string;
   intent: 'approve' | 'decline' | null;
   companyName: string | null;
+  /** Exactly the statement recorded in the signed evidence (versioned). */
+  consentText: string;
 }) {
   const [choice, setChoice] = useState<Choice>(
     intent === 'approve' || intent === 'decline' ? intent : null,
@@ -124,10 +127,7 @@ export function EstimateDecisionForm({
               type="checkbox"
               onChange={(event) => setConsent(event.target.checked)}
             />
-            <span>
-              I reviewed this exact estimate and affirmatively approve its scope,
-              pricing, and tax.
-            </span>
+            <span>{consentText}</span>
           </label>
           <button
             className={styles.approveButton}

@@ -1,15 +1,38 @@
 import type { NextRequest } from 'next/server';
-import { platformDb, isDatabaseConfigured } from '@/lib/db';
+import { headers } from 'next/headers';
+import { db, isDatabaseConfigured } from '@/lib/db';
+import { generateTrackingToken, hashTrackingToken } from '@/lib/dispatch-tracking';
+import { classifyHost } from '@/lib/host';
 import { privateJson } from '@/lib/http';
+import { getClientIp } from '@/lib/rate-limit';
+import { rateLimitWithFallback } from '@/lib/redis-rate-limit';
+import { TenantResolutionError, withTenant } from '@/lib/tenant';
 
 export const dynamic = 'force-dynamic';
 
 const VALID_CATEGORIES = new Set(['electrical', 'plumbing', 'hvac', 'general']);
 const VALID_PRIORITIES = new Set(['emergency', 'urgent', 'normal', 'low']);
 
+/**
+ * Public dispatch intake. A ticket belongs to the tenant whose verified
+ * hostname received it (migration 033): it is written through the tenant
+ * path under RLS, never through a platform-wide window. The response carries
+ * the one-time tracking token; only its hash is stored.
+ */
 export async function POST(request: NextRequest) {
   if (!isDatabaseConfigured()) {
     return privateJson({ error: 'Service temporarily unavailable' }, 503);
+  }
+
+  // Fast host gate before reading the body: only tenant hosts take intake.
+  const host = (await headers()).get('host') ?? '';
+  if (classifyHost(host) !== 'tenant') {
+    return privateJson({ error: 'Dispatch is not available on this host.' }, 404);
+  }
+
+  const ip = getClientIp(request);
+  if (!(await rateLimitWithFallback(`dispatch:${ip}`, { capacity: 10, refillPerMinute: 3 }))) {
+    return privateJson({ error: 'Too many requests. Please try again later.' }, 429);
   }
 
   let body: Record<string, unknown>;
@@ -50,20 +73,30 @@ export async function POST(request: NextRequest) {
     return privateJson({ error: 'Invalid priority (emergency, urgent, normal, low)' }, 400);
   }
 
+  const trackingToken = generateTrackingToken();
+
   try {
-    const sql = platformDb();
-    const rows = await sql.query(
-      'SELECT create_dispatch_ticket($1, $2, $3, $4, $5, $6, $7, $8) AS ticket',
-      [category, workRequired, siteLocation, contactName, contactEmail, contactPhone, priority, preferredDate],
-    );
+    return await withTenant(async () => {
+      const rows = await db().query(
+        'SELECT id, ticket_number FROM create_dispatch_ticket($1, $2, $3, $4, $5, $6, $7, $8, $9)',
+        [
+          hashTrackingToken(trackingToken),
+          category, workRequired, siteLocation, contactName, contactEmail,
+          contactPhone, priority, preferredDate,
+        ],
+      );
 
-    const ticket = rows[0]?.ticket as { id: string; ticket_number: string } | undefined;
-    if (!ticket) {
-      return privateJson({ error: 'Failed to create dispatch ticket' }, 500);
-    }
+      const ticket = rows[0] as { id: string; ticket_number: string } | undefined;
+      if (!ticket) {
+        return privateJson({ error: 'Failed to create dispatch ticket' }, 500);
+      }
 
-    return privateJson({ ok: true, ticketNumber: ticket.ticket_number }, 201);
+      return privateJson({ ok: true, ticketNumber: ticket.ticket_number, trackingToken }, 201);
+    });
   } catch (error) {
+    if (error instanceof TenantResolutionError) {
+      return privateJson({ error: 'Dispatch is not available on this host.' }, 404);
+    }
     console.error('Dispatch ticket creation failed:', error);
     return privateJson({ error: 'Failed to create dispatch ticket' }, 500);
   }

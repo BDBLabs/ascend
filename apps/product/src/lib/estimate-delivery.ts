@@ -1,12 +1,13 @@
 import 'server-only';
 
 import {
+  customerAccessTokenKeyVersion,
   customerAccessTokensConfigured,
+  deriveCustomerAccessToken,
+  hashCustomerAccessToken,
 } from '@/lib/customer-access-tokens';
-import {
-  issueCustomerAccessGrant,
-} from '@/lib/customer-access-grants';
 import { db } from '@/lib/db';
+import { draftContentHash } from '@/lib/estimate-evidence';
 import {
   getEstimate,
   type EstimateRecord,
@@ -19,7 +20,6 @@ import {
   type EstimateDeliveryPayload,
 } from '@/lib/outbox-dispatch';
 import { loadInForceConfig } from '@/lib/tenant';
-import { enqueueOutboxMessage } from '@/lib/transactional-outbox';
 
 /**
  * Estimate customer delivery, ascend's equivalent of the prototype's
@@ -48,7 +48,8 @@ export type EstimateDeliveryResult =
       | 'customer-email-missing'
       | 'delivery-not-configured'
       | 'link-tokens-not-configured'
-      | 'tenant-host-not-found' };
+      | 'tenant-host-not-found'
+      | 'estimate-changed' };
 
 function daysAfter(date: Date, days: number) {
   const next = new Date(date);
@@ -103,32 +104,26 @@ export async function createEstimateDelivery(options: {
   // the intent query parameter to preselect the customer's choice.
   const baseUrl = `https://${hostname}`;
 
-  let view: Awaited<ReturnType<typeof issueCustomerAccessGrant>>;
-  let sign: Awaited<ReturnType<typeof issueCustomerAccessGrant>>;
-  try {
-    [view, sign] = await Promise.all([
-      issueCustomerAccessGrant({
-        customerId: estimate.customerId,
-        documentId: estimate.id,
-        resourceVersionId: null,
-        purpose: 'estimate.view',
-        expiresAt: expiresAtIso,
-        createdBy: context.actorId,
-      }),
-      issueCustomerAccessGrant({
-        customerId: estimate.customerId,
-        documentId: estimate.id,
-        resourceVersionId: null,
-        purpose: 'estimate.sign',
-        expiresAt: expiresAtIso,
-        createdBy: context.actorId,
-      }),
-    ]);
-  } catch (error) {
-    // Grant issuance uses HMAC derivation; a missing/rotated secret surfaces
-    // here as a hard failure rather than a half-queued delivery.
-    throw error;
+  // Tokens are derived here (the HMAC key never reaches the database) and bound
+  // to the draft's content hash, so editing the draft invalidates the links.
+  const deliveryId = crypto.randomUUID();
+  const contentHash = draftContentHash(estimate);
+  const keyVersion = customerAccessTokenKeyVersion();
+  const organizationId = context.organizationId;
+  function grant(purpose: 'estimate.view' | 'estimate.sign') {
+    const id = crypto.randomUUID();
+    const token = deriveCustomerAccessToken({
+      grantId: id,
+      organizationId,
+      resourceInternalId: estimate!.id,
+      resourceVersionId: contentHash,
+      purpose,
+      keyVersion,
+    });
+    return { id, token, hash: hashCustomerAccessToken(token) };
   }
+  const view = grant('estimate.view');
+  const sign = grant('estimate.sign');
 
   const payload: EstimateDeliveryPayload = {
     displayId: estimate.displayId,
@@ -144,12 +139,21 @@ export async function createEstimateDelivery(options: {
   };
 
   try {
-    await enqueueOutboxMessage('estimate_delivery', crypto.randomUUID(), payload);
+    await db().query(
+      `SELECT create_estimate_delivery(
+         $1::uuid, $2::uuid, $3::timestamptz, $4::text, $5::text, $6::uuid,
+         $7::uuid, $8::text, $9::uuid, $10::text, $11::text, $12::timestamptz,
+         $13::uuid, $14::jsonb)`,
+      [
+        deliveryId, estimate.id, estimate.updatedAt, contentHash, estimate.customer.email,
+        estimate.customerId, view.id, view.hash, sign.id, sign.hash, keyVersion,
+        expiresAtIso, context.actorId, JSON.stringify(payload),
+      ],
+    );
   } catch (error) {
-    // The email never left the queue, so the just-issued links must not stay
-    // live either; roll them back so a retry issues a fresh set.
-    await revokeGrant(view.grant.id);
-    await revokeGrant(sign.grant.id);
+    if (error instanceof Error && /estimate_changed/.test(error.message)) {
+      return { ok: false, reason: 'estimate-changed' };
+    }
     throw error;
   }
 
@@ -158,18 +162,4 @@ export async function createEstimateDelivery(options: {
     estimate,
     delivery: { status: 'queued', expiresAt: expiresAtIso },
   };
-}
-
-async function revokeGrant(grantId: string) {
-  try {
-    await db().query(
-      `UPDATE customer_access_grants
-          SET status = 'revoked', revoked_at = now(), updated_at = now()
-        WHERE id = $1 AND status = 'active'`,
-      [grantId],
-    );
-  } catch {
-    // A failed cleanup leaves an orphaned link that simply expires in
-    // ESTIMATE_LINK_DAYS; the active grant invariant prevents reuse.
-  }
 }

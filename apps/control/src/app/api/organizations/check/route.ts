@@ -1,13 +1,9 @@
-import { controlIsAuthorized } from '@/lib/control-auth';
+import { authorizeControl } from '@/lib/control-auth';
 import { checkSlugAvailability } from '@/lib/control-plane';
 
 export const dynamic = 'force-dynamic';
 
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-
-function unauthorized() {
-  return Response.json({ error: 'unauthorized' }, { status: 401 });
-}
 
 /**
  * GET /api/organizations/check?slug=xxx — pre-flight slug availability check.
@@ -15,7 +11,8 @@ function unauthorized() {
  * detect conflicts before the user submits the full provisioning request.
  */
 export async function GET(request: Request) {
-  if (!controlIsAuthorized(request.headers.get('authorization'))) return unauthorized();
+  const auth = authorizeControl(request, { allowService: true });
+  if ('response' in auth) return auth.response;
 
   const slug = new URL(request.url).searchParams.get('slug') ?? '';
   if (!slug || !SLUG_PATTERN.test(slug) || slug.length > 63) {

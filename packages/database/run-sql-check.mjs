@@ -14,19 +14,13 @@
 import { readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import pg from 'pg';
 import { splitStatements } from './sql-split.mjs';
+import { connectForTool } from './tool-connection.mjs';
 
 const CHECKS_DIR = join(dirname(fileURLToPath(import.meta.url)), 'checks');
 const file = process.argv[2];
 if (!file) {
   process.stderr.write('usage: run-sql-check.mjs <check-file.sql>\n');
-  process.exit(2);
-}
-
-const connectionString = process.env.DATABASE_URL_OWNER;
-if (!connectionString) {
-  process.stderr.write('DATABASE_URL_OWNER is not set. See docs/DATABASE_SETUP.md.\n');
   process.exit(2);
 }
 
@@ -40,14 +34,8 @@ const lines = source
   .filter((line) => !line.trim().startsWith('\\set') && !line.trim().startsWith('\\echo'));
 const statements = splitStatements(lines.join('\n'));
 
-const client = new pg.Client({
-  connectionString,
-  ssl: /localhost|127\.0\.0\.1/.test(connectionString)
-    ? false
-    : { rejectUnauthorized: true },
-});
-
-await client.connect();
+// Destructive suites: never production (P1.3).
+const { client } = await connectForTool({ tool: `verify ${file}`, stamp: 'require' });
 
 client.on('notice', (notice) => {
   process.stderr.write(`NOTICE: ${notice.message}\n`);

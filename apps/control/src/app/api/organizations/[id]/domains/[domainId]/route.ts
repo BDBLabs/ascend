@@ -1,4 +1,4 @@
-import { controlIsAuthorized } from '@/lib/control-auth';
+import { authorizeControl } from '@/lib/control-auth';
 import {
   generateDomainChallenge,
   removeCustomDomain,
@@ -8,10 +8,6 @@ import {
 export const dynamic = 'force-dynamic';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-function unauthorized() {
-  return Response.json({ error: 'unauthorized' }, { status: 401 });
-}
 
 function badRequest(message: string) {
   return Response.json({ ok: false, error: message }, { status: 400 });
@@ -24,14 +20,15 @@ export async function DELETE(
   request: Request,
   context: { params: Promise<{ id: string; domainId: string }> },
 ) {
-  if (!controlIsAuthorized(request.headers.get('authorization'))) return unauthorized();
+  const auth = authorizeControl(request);
+  if ('response' in auth) return auth.response;
 
   const { id, domainId } = await context.params;
   if (!UUID_PATTERN.test(id)) return badRequest('organization id must be a uuid');
   if (!UUID_PATTERN.test(domainId)) return badRequest('domain id must be a uuid');
 
   try {
-    await removeCustomDomain(id, domainId);
+    await removeCustomDomain(id, domainId, auth.caller.id);
     return Response.json({ ok: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'unknown error';
@@ -49,7 +46,8 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ id: string; domainId: string }> },
 ) {
-  if (!controlIsAuthorized(request.headers.get('authorization'))) return unauthorized();
+  const auth = authorizeControl(request);
+  if ('response' in auth) return auth.response;
 
   const { id, domainId } = await context.params;
   if (!UUID_PATTERN.test(id)) return badRequest('organization id must be a uuid');
@@ -68,7 +66,7 @@ export async function POST(
 
   try {
     if (body.action === 'verify') {
-      await verifyCustomDomain(id, domainId);
+      await verifyCustomDomain(id, domainId, auth.caller.id);
       return Response.json({ ok: true, action: 'verify', verified: true });
     } else {
       const challenge = await generateDomainChallenge(id, domainId);

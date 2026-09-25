@@ -1,13 +1,9 @@
-import { controlIsAuthorized } from '@/lib/control-auth';
+import { authorizeControl } from '@/lib/control-auth';
 import { addCustomDomain, listOrganizationDomains } from '@/lib/control-plane';
 
 export const dynamic = 'force-dynamic';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-function unauthorized() {
-  return Response.json({ error: 'unauthorized' }, { status: 401 });
-}
 
 function badRequest(message: string) {
   return Response.json({ ok: false, error: message }, { status: 400 });
@@ -17,7 +13,8 @@ function badRequest(message: string) {
  * GET /api/organizations/[id]/domains — list all domains for an organization.
  */
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
-  if (!controlIsAuthorized(request.headers.get('authorization'))) return unauthorized();
+  const auth = authorizeControl(request);
+  if ('response' in auth) return auth.response;
 
   const { id } = await context.params;
   if (!UUID_PATTERN.test(id)) return badRequest('organization id must be a uuid');
@@ -38,7 +35,8 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
  * Body: { "hostname": "smithplumbing.com" }
  */
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  if (!controlIsAuthorized(request.headers.get('authorization'))) return unauthorized();
+  const auth = authorizeControl(request);
+  if ('response' in auth) return auth.response;
 
   const { id } = await context.params;
   if (!UUID_PATTERN.test(id)) return badRequest('organization id must be a uuid');
@@ -55,7 +53,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   }
 
   try {
-    const domain = await addCustomDomain(id, body.hostname.trim().toLowerCase());
+    const domain = await addCustomDomain(id, body.hostname.trim().toLowerCase(), auth.caller.id);
     return Response.json({ ok: true, domain }, { status: 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'unknown error';

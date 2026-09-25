@@ -32,13 +32,13 @@ describe('password hashing (scrypt)', () => {
   });
 
   it('salts each hash', async () => {
-    const first = await hashPassword('same-password-123');
-    const second = await hashPassword('same-password-123');
+    const first = await hashPassword('same-password-12345');
+    const second = await hashPassword('same-password-12345');
     expect(first).not.toBe(second);
   });
 
   it('rejects short passwords', async () => {
-    await expect(hashPassword('short')).rejects.toThrow(/at least 8/);
+    await expect(hashPassword('short')).rejects.toThrow(/at least 12/);
   });
 
   it('rejects malformed stored hashes', async () => {

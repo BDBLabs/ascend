@@ -5,6 +5,8 @@ import {
   getFieldPrincipal,
   withFieldContext,
 } from '@/lib/field-api-auth';
+import { verificationRecord } from '@/lib/dns-verification';
+import { PLATFORM_BASE_DOMAIN } from '@/lib/host';
 import { privateJson } from '@/lib/http';
 
 export const dynamic = 'force-dynamic';
@@ -13,7 +15,7 @@ const HOSTNAME_PATTERN = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\
 
 /**
  * GET /api/field/domains — list all domains for the current organization.
- * Returns the canonical *.useascend.com domain and any custom domains.
+ * Returns the canonical platform subdomain and any custom domains.
  */
 export async function GET() {
   const principal = await getFieldPrincipal();
@@ -83,48 +85,38 @@ export async function POST(request: NextRequest) {
     return privateJson({ error: 'hostname is not a valid domain' }, 400);
   }
 
-  // Check if this is a *.useascend.com subdomain (reserved)
-  if (hostname.endsWith('.useascend.com')) {
-    return privateJson({ error: 'cannot add *.useascend.com subdomains as custom domains' }, 400);
+  // The platform domain and its tenant subdomains are reserved.
+  if (hostname === PLATFORM_BASE_DOMAIN || hostname.endsWith(`.${PLATFORM_BASE_DOMAIN}`)) {
+    return privateJson({ error: `cannot add ${PLATFORM_BASE_DOMAIN} hostnames as custom domains` }, 400);
   }
 
   try {
     return await withFieldContext(principal, async () => {
-      const sql = db();
-
-      // Check if hostname is already in use
-      const existingRows = await sql.query(
-        'SELECT 1 FROM organization_domains WHERE hostname = $1',
-        [hostname],
-      );
-
-      if (existingRows.length) {
-        return privateJson({ error: 'hostname already in use' }, 409);
+      let rows: Array<Record<string, unknown>>;
+      try {
+        rows = await db().query(
+          'SELECT id, hostname, verification_token FROM tenant_domain_add($1, $2)',
+          [hostname, PLATFORM_BASE_DOMAIN],
+        );
+      } catch (error) {
+        if ((error as { code?: string }).code === '23505') {
+          return privateJson({ error: 'hostname already in use' }, 409);
+        }
+        throw error;
       }
-
-      // Add the domain
-      const rows = await sql.query(
-        `INSERT INTO organization_domains (organization_id, hostname, is_canonical, verified)
-         VALUES (app_require_organization_id(), $1, false, false)
-         RETURNING id, hostname, is_canonical, verified, verified_at, created_at`,
-        [hostname],
-      );
-
-      if (!rows.length) {
-        return privateJson({ error: 'failed to add domain' }, 500);
-      }
-
-      const row = rows[0] as Record<string, unknown>;
+      const row = rows[0];
+      const record = verificationRecord(String(row.hostname), String(row.verification_token));
       return privateJson({
         ok: true,
         domain: {
           id: String(row.id),
           hostname: String(row.hostname),
-          isCanonical: Boolean(row.is_canonical),
-          verified: Boolean(row.verified),
-          verifiedAt: row.verified_at ? String(row.verified_at) : null,
-          createdAt: String(row.created_at),
+          isCanonical: false,
+          verified: false,
+          verifiedAt: null,
         },
+        // Publish this record, then POST /api/field/domains/{id}/verify.
+        verification: { type: 'TXT', name: record.name, value: record.value },
       }, 201);
     });
   } catch (error) {

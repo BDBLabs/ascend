@@ -21,6 +21,7 @@ import {
   td,
   th,
   money,
+  tableScroll,
 } from './ascend-theme';
 
 export const dynamic = 'force-dynamic';
@@ -117,6 +118,7 @@ export default async function AscendDashboardPage() {
         </p>
       ) : (
         <div style={card}>
+          <div style={tableScroll}>
           <table style={table}>
             <thead>
               <tr>
@@ -164,6 +166,7 @@ export default async function AscendDashboardPage() {
               })}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

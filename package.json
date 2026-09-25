@@ -13,17 +13,20 @@
     "build:all": "npm run build --workspaces --if-present",
     "start": "npm run start --workspace @contractor-platform/product",
     "lint": "npm run lint --workspaces --if-present",
-    "test": "npm run test --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present && node --test scripts/*.test.mjs",
     "secrets:check": "node scripts/secret-scan.mjs",
     "audit:production": "npm audit --omit=dev --audit-level=high",
     "verify:ci": "npm run secrets:check && npm run lint && npm test && npm run build:all && npm run audit:production",
     "db:migrate": "node --env-file-if-exists=.env.local packages/database/migrate.mjs",
     "db:status": "node --env-file-if-exists=.env.local packages/database/migrate.mjs --status",
     "db:verify": "node --env-file-if-exists=.env.local packages/database/verify.mjs",
-    "db:seed:dev": "node --env-file-if-exists=.env.local packages/database/seed-dev-tenant.mjs"
+    "db:seed:dev": "node --env-file-if-exists=.env.local packages/database/seed-dev-tenant.mjs",
+    "db:stamp": "node --env-file-if-exists=.env.local packages/database/stamp-environment.mjs",
+    "promotion:check": "node scripts/promotion-check.mjs",
+    "db:preflight": "node --env-file-if-exists=.env.local packages/database/preflight.mjs"
   },
   "engines": {
-    "node": ">=22"
+    "node": "22.x"
   },
   "devDependencies": {
     "eslint": "^9",

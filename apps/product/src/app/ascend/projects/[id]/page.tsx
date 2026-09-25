@@ -63,6 +63,7 @@ import {
   th,
   money,
   sectionTitle,
+  tableScroll,
 } from '../../ascend-theme';
 
 export const dynamic = 'force-dynamic';
@@ -254,6 +255,7 @@ export default async function AscendProjectDetailPage({ params }: PageProps) {
         <p style={muted}>No units linked.</p>
       ) : (
         <div style={card}>
+          <div style={tableScroll}>
           <table style={table}>
             <thead>
               <tr>
@@ -288,6 +290,7 @@ export default async function AscendProjectDetailPage({ params }: PageProps) {
               )}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
@@ -297,6 +300,7 @@ export default async function AscendProjectDetailPage({ params }: PageProps) {
         <p style={muted}>No work packages yet.</p>
       ) : (
         <div style={card}>
+          <div style={tableScroll}>
           <table style={table}>
             <thead>
               <tr>
@@ -337,6 +341,7 @@ export default async function AscendProjectDetailPage({ params }: PageProps) {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
@@ -346,6 +351,7 @@ export default async function AscendProjectDetailPage({ params }: PageProps) {
         <p style={muted}>No cost entries yet.</p>
       ) : (
         <div style={card}>
+          <div style={tableScroll}>
           <table style={table}>
             <thead>
               <tr>
@@ -368,6 +374,7 @@ export default async function AscendProjectDetailPage({ params }: PageProps) {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
@@ -376,6 +383,7 @@ export default async function AscendProjectDetailPage({ params }: PageProps) {
         <p style={muted}>No entries yet.</p>
       ) : (
         <div style={card}>
+          <div style={tableScroll}>
           <table style={table}>
             <thead>
               <tr>
@@ -404,6 +412,7 @@ export default async function AscendProjectDetailPage({ params }: PageProps) {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
@@ -413,6 +422,7 @@ export default async function AscendProjectDetailPage({ params }: PageProps) {
         <p style={muted}>No parts specified yet.</p>
       ) : (
         <div style={card}>
+          <div style={tableScroll}>
           <table style={table}>
             <thead>
               <tr>
@@ -454,6 +464,7 @@ export default async function AscendProjectDetailPage({ params }: PageProps) {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
@@ -470,6 +481,7 @@ export default async function AscendProjectDetailPage({ params }: PageProps) {
         </p>
       ) : (
         <div style={card}>
+          <div style={tableScroll}>
           <table style={table}>
             <thead>
               <tr>
@@ -496,6 +508,7 @@ export default async function AscendProjectDetailPage({ params }: PageProps) {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
@@ -539,6 +552,7 @@ export default async function AscendProjectDetailPage({ params }: PageProps) {
         <p style={muted}>No applications yet.</p>
       ) : (
         <div style={card}>
+          <div style={tableScroll}>
           <table style={table}>
             <thead>
               <tr>
@@ -590,6 +604,7 @@ export default async function AscendProjectDetailPage({ params }: PageProps) {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

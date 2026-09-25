@@ -194,6 +194,9 @@ $$;
 -- so it must be nullable. The table has no app-role policy that leaks it as
 -- tenant data -- platform_runtime and control_app manage it, and neither runs
 -- in tenant context.
+-- identity_audit_events (035) is the same shape: platform-owned, NULL for
+-- global identity events (suspension), readable only by control_app, with no
+-- contractor_app grant at all.
 DO $$
 DECLARE
   nullable text;
@@ -204,7 +207,7 @@ BEGIN
   JOIN pg_attribute a ON a.attrelid = c.oid
    AND a.attname = 'organization_id' AND NOT a.attisdropped
   WHERE n.nspname = 'public' AND c.relkind = 'r' AND NOT a.attnotnull
-    AND c.relname <> 'clerk_webhook_events';
+    AND c.relname NOT IN ('clerk_webhook_events', 'identity_audit_events');
   IF nullable IS NOT NULL THEN
     RAISE EXCEPTION 'organization_id is nullable on: %. Unattributed rows are possible.', nullable;
   END IF;

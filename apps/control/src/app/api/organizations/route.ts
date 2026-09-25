@@ -1,11 +1,8 @@
-import { controlIsAuthorized } from '@/lib/control-auth';
+import { authorizeControl } from '@/lib/control-auth';
+import { onboardingQuotaExceeded } from '@/lib/control-operations';
 import { listOrganizations, provisionTenant } from '@/lib/control-plane';
 
 export const dynamic = 'force-dynamic';
-
-function unauthorized() {
-  return Response.json({ error: 'unauthorized' }, { status: 401 });
-}
 
 /**
  * POST /api/organizations — provision a new tenant. The request body is the
@@ -14,7 +11,8 @@ function unauthorized() {
  * verification and activation.
  */
 export async function POST(request: Request) {
-  if (!controlIsAuthorized(request.headers.get('authorization'))) return unauthorized();
+  const auth = authorizeControl(request, { allowService: true });
+  if ('response' in auth) return auth.response;
 
   let body: unknown;
   try {
@@ -23,8 +21,15 @@ export async function POST(request: Request) {
     return Response.json({ error: 'request body must be JSON' }, { status: 400 });
   }
 
+  if (auth.caller.kind === 'service' && await onboardingQuotaExceeded(auth.caller.id)) {
+    return Response.json(
+      { ok: false, error: 'onboarding is temporarily limited; try again later' },
+      { status: 429 },
+    );
+  }
+
   try {
-    const tenant = await provisionTenant(body);
+    const tenant = await provisionTenant(body, auth.caller.id);
     return Response.json(
       { ok: true, tenant, next: 'verify DNS then activate' },
       { status: 201 },
@@ -42,7 +47,8 @@ export async function POST(request: Request) {
  * GET /api/organizations — every organization on the platform, newest first.
  */
 export async function GET(request: Request) {
-  if (!controlIsAuthorized(request.headers.get('authorization'))) return unauthorized();
+  const auth = authorizeControl(request);
+  if ('response' in auth) return auth.response;
 
   try {
     const organizations = await listOrganizations();

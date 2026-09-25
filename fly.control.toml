@@ -11,6 +11,12 @@ app = 'ascend-control'
 # than edge proximity to the visitor.
 primary_region = 'iad'
 
+# Environment identity (P1.3, P0.1): a production build outside Vercel must
+# declare it. The apps refuse a database stamped for another environment, and
+# a production deployment refuses to start with any demo-principal variable.
+[env]
+  ASCEND_ENVIRONMENT = 'production'
+
 [build]
   dockerfile = 'apps/control/Dockerfile'
 

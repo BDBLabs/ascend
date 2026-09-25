@@ -13,13 +13,14 @@ import { readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
+import { connectForTool } from './tool-connection.mjs';
 
 const CHECKS_DIR = join(dirname(fileURLToPath(import.meta.url)), 'checks');
 
-if (!process.env.DATABASE_URL_OWNER) {
-  process.stderr.write('DATABASE_URL_OWNER is not set. See docs/DATABASE_SETUP.md.\n');
-  process.exit(2);
-}
+// Fail fast, once, before any suite runs: the suites write (then roll back),
+// so they never run against production or an unidentified database.
+const { client: probe } = await connectForTool({ tool: 'verify', stamp: 'require' });
+await probe.end();
 
 const files = readdirSync(CHECKS_DIR).filter((name) => name.endsWith('.sql')).sort();
 

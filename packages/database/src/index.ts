@@ -17,4 +17,23 @@
  * the expected schema version without keeping two hand-rolled strings in sync.
  * Update it whenever a new migration file is added to migrations/.
  */
-export const LATEST_MIGRATION = '031_ascend_contract_obligations.sql';
+export const LATEST_MIGRATION = '038_operations_windows.sql';
+
+// Runtime contract (environment identity + explicit TLS), shared with the
+// operator tools. The registry is imported statically so it is bundled with
+// each app rather than read from disk at runtime.
+import environmentRegistry from '../../../config/database-environments.json';
+import type { EnvironmentRegistry } from './runtime-contract.mjs';
+
+export const ENVIRONMENT_REGISTRY: EnvironmentRegistry = environmentRegistry;
+export {
+  assertRuntimeTarget,
+  assertStamp,
+  createRuntimeGuard,
+  describeDatabaseUrl,
+  EnvironmentGuardError,
+  pgConnectionConfig,
+  readStamp,
+  resolveRuntimeEnvironment,
+} from './runtime-contract.mjs';
+export type { JboxEnvironment } from './runtime-contract.mjs';

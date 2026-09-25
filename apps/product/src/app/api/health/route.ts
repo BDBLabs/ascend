@@ -1,5 +1,6 @@
 import { LATEST_MIGRATION } from '@contractor-platform/database';
 import { isDatabaseConfigured, platformDb } from '@/lib/db';
+import { readOutboxHealth } from '@/lib/transactional-outbox';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,10 +13,29 @@ export const dynamic = 'force-dynamic';
  * LATEST_MIGRATION is imported from @contractor-platform/database so both apps
  * always agree on the expected schema version without hand-rolling the string.
  *
- * deadOutboxMessages: number of outbox messages that have exhausted all
- * retries. A non-zero value means deliveries are being lost and should alert.
+ * Outbox signals (counts only, never tenant-attributed) for alerting:
+ *   deadOutboxMessages      > 0      deliveries were lost; investigate.
+ *   outboxExpiredLeases     > 0      a worker crashed mid-claim; the next drain
+ *                                    reclaims it, persistent non-zero = no drain.
+ *   outboxOldestPendingSeconds       backlog age; alert above the delivery SLO
+ *                                    (OUTBOX_PENDING_SLO_SECONDS, default 900).
+ *   outboxWithinSlo                  false when the oldest pending message is
+ *                                    older than the SLO, i.e. the cron is missed
+ *                                    or failing.
+ *
+ * `?probe=live` is a liveness probe: it answers 200 without touching the
+ * database, so a slow or unavailable database does not get a healthy process
+ * restarted. The default (readiness) requires the database and latest schema.
  */
-export async function GET() {
+export async function GET(request?: Request) {
+  const probe = request ? new URL(request.url).searchParams.get('probe') : null;
+  if (probe === 'live') {
+    return Response.json(
+      { ok: true, service: 'product', probe: 'live' },
+      { status: 200, headers: { 'Cache-Control': 'no-store' } },
+    );
+  }
+
   const checks: Record<string, boolean | number> = { database: false, schema: false };
 
   if (isDatabaseConfigured()) {
@@ -34,20 +54,20 @@ export async function GET() {
       // Leave all false; the status code carries the signal.
     }
 
-    // Surface dead outbox messages as an observable metric. This count is
-    // intentionally separate from the readiness gate — dead messages do not
-    // make the service unhealthy (it can still serve requests), but they do
-    // represent lost deliveries that an operator should investigate.
+    // Outbox signals are observable metrics, deliberately separate from the
+    // readiness gate: a backlog does not stop the service serving requests.
     if (checks.database) {
       try {
-        const deadRows = await platformDb().query(
-          'SELECT count_dead_outbox_messages() AS dead_count',
-          [],
-        );
-        checks.deadOutboxMessages = Number(deadRows[0]?.dead_count ?? 0);
+        const outbox = await readOutboxHealth();
+        const slo = Number(process.env.OUTBOX_PENDING_SLO_SECONDS ?? 900);
+        checks.deadOutboxMessages = outbox.dead;
+        checks.outboxPending = outbox.pending;
+        checks.outboxOldestPendingSeconds = outbox.oldestPendingSeconds;
+        checks.outboxExpiredLeases = outbox.expiredLeases;
+        checks.outboxWithinSlo = outbox.oldestPendingSeconds <= slo;
       } catch {
-        // count_dead_outbox_messages is migration 014; skip gracefully if
-        // the function does not exist yet on older environments.
+        // outbox_health is migration 032; the schema check above already
+        // reports an older schema, so skip rather than fail readiness.
       }
     }
   }

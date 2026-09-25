@@ -7,8 +7,6 @@ const mocks = vi.hoisted(() => ({
   getEstimate: vi.fn(),
   loadInForceConfig: vi.fn(),
   customerAccessTokensConfigured: vi.fn(),
-  issueCustomerAccessGrant: vi.fn(),
-  enqueueOutboxMessage: vi.fn(),
   dbQuery: vi.fn(),
 }));
 
@@ -23,12 +21,13 @@ vi.mock('@/lib/tenant', () => ({
 }));
 vi.mock('@/lib/customer-access-tokens', () => ({
   customerAccessTokensConfigured: () => mocks.customerAccessTokensConfigured(),
+  customerAccessTokenKeyVersion: () => 'v1',
+  deriveCustomerAccessToken: (scope: { purpose: string; resourceVersionId: string }) =>
+    `token-${scope.purpose.split('.')[1]}-${scope.resourceVersionId.slice(0, 8)}`,
+  hashCustomerAccessToken: (token: string) => `hash-of-${token}`,
 }));
-vi.mock('@/lib/customer-access-grants', () => ({
-  issueCustomerAccessGrant: (...args: unknown[]) => mocks.issueCustomerAccessGrant(...args),
-}));
-vi.mock('@/lib/transactional-outbox', () => ({
-  enqueueOutboxMessage: (...args: unknown[]) => mocks.enqueueOutboxMessage(...args),
+vi.mock('@/lib/estimate-evidence', () => ({
+  draftContentHash: () => 'c'.repeat(64),
 }));
 vi.mock('@/lib/db', () => ({
   db: () => ({ query: mocks.dbQuery }),
@@ -65,20 +64,12 @@ const CONFIG = {
 
 const CONTEXT = { organizationId: ORGANIZATION_ID, actorId: 'actor-1', requestId: 'req-1' };
 
-function granted(token: string, id = 'grant-id') {
-  return {
-    grant: { id, customerId: ESTIMATE.customerId, documentType: 'estimate', documentId: ESTIMATE.id, purpose: 'sign', expiresAt: '2026-08-15T00:00:00.000Z' },
-    token,
-  };
-}
 
 beforeEach(() => {
   mocks.requireOrganizationContext.mockReturnValue(CONTEXT);
   mocks.getEstimate.mockResolvedValue(ESTIMATE);
   mocks.loadInForceConfig.mockResolvedValue(CONFIG);
   mocks.customerAccessTokensConfigured.mockReturnValue(true);
-  mocks.issueCustomerAccessGrant.mockResolvedValue(granted('token-view'));
-  mocks.enqueueOutboxMessage.mockResolvedValue(undefined);
   mocks.dbQuery.mockResolvedValue([{ hostname: 'paris.useascend.com' }]);
   process.env.RESEND_API_KEY = 're_test_abcdefghijkl';
 });
@@ -120,7 +111,7 @@ describe('createEstimateDelivery gating', () => {
     const result = await createEstimateDelivery({ estimateId: ESTIMATE.id, timeZone: 'UTC' });
     expect(result.ok).toBe(false);
     expect(result.ok === false && result.reason).toBe('delivery-not-configured');
-    expect(mocks.enqueueOutboxMessage).not.toHaveBeenCalled();
+    expect(mocks.dbQuery.mock.calls.some(([sql]) => String(sql).includes('create_estimate_delivery'))).toBe(false);
   });
 
   it('returns link-tokens-not-configured when access tokens are unset', async () => {
@@ -138,51 +129,63 @@ describe('createEstimateDelivery gating', () => {
   });
 });
 
-describe('createEstimateDelivery enqueue', () => {
-  it('issues view and sign grants and enqueues a self-contained payload', async () => {
-    mocks.issueCustomerAccessGrant
-      .mockResolvedValueOnce(granted('token-view'))
-      .mockResolvedValueOnce(granted('token-sign'));
+describe('createEstimateDelivery (one transaction)', () => {
+  function deliveryCall() {
+    return mocks.dbQuery.mock.calls.find(([sql]) => String(sql).includes('create_estimate_delivery')) as
+      [string, unknown[]] | undefined;
+  }
 
+  it('issues both grants, the delivery and the outbox message in ONE database call', async () => {
     const result = await createEstimateDelivery({ estimateId: ESTIMATE.id, timeZone: 'UTC' });
-
     expect(result.ok).toBe(true);
-    expect(mocks.issueCustomerAccessGrant).toHaveBeenCalledTimes(2);
-    const [viewCall, signCall] = mocks.issueCustomerAccessGrant.mock.calls as [Record<string, unknown>[], Record<string, unknown>[]];
-    expect(viewCall[0].purpose).toBe('estimate.view');
-    expect(signCall[0].purpose).toBe('estimate.sign');
-    expect(viewCall[0].createdBy).toBe('actor-1');
 
-    expect(mocks.enqueueOutboxMessage).toHaveBeenCalledTimes(1);
-    const [topic, key, payload] = mocks.enqueueOutboxMessage.mock.calls[0] as [string, string, Record<string, unknown>];
-    expect(topic).toBe('estimate_delivery');
-    expect(key).toMatch(/^[0-9a-f-]{36}$/);
+    const call = deliveryCall();
+    expect(call).toBeDefined();
+    const [, params] = call!;
+    const [deliveryId, estimateId, expectedUpdatedAt, contentHash, recipient, customerId,
+      viewGrantId, viewHash, signGrantId, signHash, keyVersion, , createdBy, payloadJson] = params as string[];
+    expect(deliveryId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(estimateId).toBe(ESTIMATE.id);
+    expect(expectedUpdatedAt).toBe(ESTIMATE.updatedAt);
+    expect(contentHash).toBe('c'.repeat(64));
+    expect(recipient).toBe('customer@example.com');
+    expect(customerId).toBe(ESTIMATE.customerId);
+    expect(viewGrantId).not.toBe(signGrantId);
+    // Only token HASHES reach the database.
+    expect(viewHash).toBe('hash-of-token-view-cccccccc');
+    expect(signHash).toBe('hash-of-token-sign-cccccccc');
+    expect(keyVersion).toBe('v1');
+    expect(createdBy).toBe('actor-1');
+
+    const payload = JSON.parse(payloadJson) as Record<string, unknown>;
     expect(payload).toMatchObject({
       displayId: 'EST-0001',
       customerEmail: 'customer@example.com',
       from: 'hello@paris.useascend.com',
-      replyTo: 'hello@paris.useascend.com',
       companyName: 'Paris Electric',
-      viewUrl: 'https://paris.useascend.com/estimates/token-view',
-      approveUrl: 'https://paris.useascend.com/estimates/token-sign?intent=approve',
-      declineUrl: 'https://paris.useascend.com/estimates/token-sign?intent=decline',
+      // Links are bound to the draft content hash.
+      viewUrl: 'https://paris.useascend.com/estimates/token-view-cccccccc',
+      approveUrl: 'https://paris.useascend.com/estimates/token-sign-cccccccc?intent=approve',
+      declineUrl: 'https://paris.useascend.com/estimates/token-sign-cccccccc?intent=decline',
     });
-    expect(typeof payload.expiresAt).toBe('string');
-
-    if (result.ok) {
-      expect(result.delivery.status).toBe('queued');
-    }
+    if (result.ok) expect(result.delivery.status).toBe('queued');
   });
 
-  it('revokes both grants and rethrows when enqueueing fails', async () => {
-    mocks.enqueueOutboxMessage.mockRejectedValue(new Error('queue down'));
+  it('has no compensating cleanup path: a failure is one rolled-back transaction', async () => {
+    mocks.dbQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes('create_estimate_delivery')) throw new Error('queue down');
+      return [{ hostname: 'paris.useascend.com' }];
+    });
+    await expect(createEstimateDelivery({ estimateId: ESTIMATE.id, timeZone: 'UTC' })).rejects.toThrow('queue down');
+    expect(mocks.dbQuery.mock.calls.filter(([sql]) => String(sql).includes("'revoked'"))).toHaveLength(0);
+  });
 
-    await expect(createEstimateDelivery({ estimateId: ESTIMATE.id, timeZone: 'UTC' }))
-      .rejects.toThrow('queue down');
-
-    const revocations = mocks.dbQuery.mock.calls.filter(
-      (call) => String(call[0]).includes('status = \'revoked\''),
-    );
-    expect(revocations.length).toBe(2);
+  it('reports an estimate edited mid-send as estimate-changed', async () => {
+    mocks.dbQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes('create_estimate_delivery')) throw new Error('estimate_changed: the estimate is no longer the draft being sent');
+      return [{ hostname: 'paris.useascend.com' }];
+    });
+    expect(await createEstimateDelivery({ estimateId: ESTIMATE.id, timeZone: 'UTC' }))
+      .toEqual({ ok: false, reason: 'estimate-changed' });
   });
 });

@@ -1,4 +1,4 @@
-import { controlIsAuthorized } from '@/lib/control-auth';
+import { authorizeControl } from '@/lib/control-auth';
 import {
   activateOrganization,
   getOrganizationReadiness,
@@ -9,10 +9,6 @@ export const dynamic = 'force-dynamic';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-function unauthorized() {
-  return Response.json({ error: 'unauthorized' }, { status: 401 });
-}
-
 function badRequest(message: string) {
   return Response.json({ ok: false, error: message }, { status: 400 });
 }
@@ -21,7 +17,8 @@ function badRequest(message: string) {
  * GET /api/organizations/[id] — provisioning readiness for one tenant.
  */
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
-  if (!controlIsAuthorized(request.headers.get('authorization'))) return unauthorized();
+  const auth = authorizeControl(request);
+  if ('response' in auth) return auth.response;
 
   const { id } = await context.params;
   if (!UUID_PATTERN.test(id)) return badRequest('organization id must be a uuid');
@@ -44,7 +41,8 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
  *   { "action": "activate" }       gate-check, then make the tenant active
  */
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  if (!controlIsAuthorized(request.headers.get('authorization'))) return unauthorized();
+  const auth = authorizeControl(request);
+  if ('response' in auth) return auth.response;
 
   const { id } = await context.params;
   if (!UUID_PATTERN.test(id)) return badRequest('organization id must be a uuid');
@@ -62,9 +60,9 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
   try {
     if (body.action === 'verify-domain') {
-      await verifyCanonicalDomain(id);
+      await verifyCanonicalDomain(id, auth.caller.id);
     } else {
-      await activateOrganization(id);
+      await activateOrganization(id, auth.caller.id);
     }
     const readiness = await getOrganizationReadiness(id);
     return Response.json({ ok: true, action: body.action, readiness });

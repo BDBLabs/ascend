@@ -4,30 +4,14 @@ import { db } from '@/lib/db';
 import { classifyHost } from '@/lib/host';
 import { getClientIp } from '@/lib/rate-limit';
 import { rateLimitWithFallback } from '@/lib/redis-rate-limit';
-import { saveUpload } from '@/lib/storage';
+import { MAX_PHOTOS, validatePhotos, type ValidatedPhoto } from '@/lib/image-upload';
+import { deleteUpload, saveUpload } from '@/lib/storage';
 import { TenantResolutionError, loadInForceConfig, withTenant } from '@/lib/tenant';
 
 export const dynamic = 'force-dynamic';
 
-const MAX_PHOTOS = 5;
-const MAX_PHOTO_BYTES = 8 * 1024 * 1024;
-
 function json(response: Record<string, unknown>, status: number): Response {
   return Response.json(response, { status });
-}
-
-function extensionFor(contentType: string, filename: string): string {
-  const byType: Record<string, string> = {
-    'image/jpeg': 'jpg',
-    'image/png': 'png',
-    'image/webp': 'webp',
-    'image/gif': 'gif',
-    'image/heic': 'heic',
-    'image/heif': 'heif',
-  };
-  if (byType[contentType]) return byType[contentType];
-  const fromName = filename.split('.').pop()?.toLowerCase() ?? '';
-  return /^[a-z0-9]{1,8}$/.test(fromName) ? fromName : 'bin';
 }
 
 /**
@@ -92,12 +76,16 @@ export async function POST(request: NextRequest) {
     .getAll('photos')
     .filter((entry): entry is File => typeof entry !== 'string');
   if (files.length > MAX_PHOTOS) problems.push(`at most ${MAX_PHOTOS} photos`);
-  for (const file of files) {
-    if (file.size > MAX_PHOTO_BYTES) problems.push('each photo must be under 8 MB');
-  }
   if (problems.length) {
     return json({ error: problems.join('; ') }, 400);
   }
+
+  // Content type and extension come from the bytes, not the upload headers.
+  const validated = await validatePhotos(files);
+  if (!validated.ok) {
+    return json({ error: validated.error }, 400);
+  }
+  const validPhotos: ValidatedPhoto[] = validated.photos;
 
   // --- Phase 3: DB-verified tenant resolution + write ----------------------
   return withTenant(async () => {
@@ -117,66 +105,79 @@ export async function POST(request: NextRequest) {
       size_bytes: number;
       position: number;
     }> = [];
-    for (let index = 0; index < files.length; index += 1) {
-      const file = files[index];
-      photos.push({
-        storage_key: await saveUpload(
-          Buffer.from(await file.arrayBuffer()),
-          extensionFor(file.type, file.name),
-        ),
-        filename: file.name.slice(0, 255),
-        content_type: file.type || 'application/octet-stream',
-        size_bytes: file.size,
-        position: index,
-      });
+    const storedKeys: string[] = [];
+    try {
+      for (let index = 0; index < validPhotos.length; index += 1) {
+        const photo = validPhotos[index];
+        const key = await saveUpload(photo.bytes, photo.extension, photo.contentType);
+        storedKeys.push(key);
+        photos.push({
+          storage_key: key,
+          filename: photo.filename.slice(0, 255),
+          content_type: photo.contentType,
+          size_bytes: photo.sizeBytes,
+          position: index,
+        });
+      }
+    } catch (error) {
+      await Promise.allSettled(storedKeys.map((key) => deleteUpload(key)));
+      throw error;
     }
 
-    const rows = await db().query(
-      `WITH allocated AS (
-         SELECT allocate_document_number('service_request') AS n
-       ),
-       request AS (
-         INSERT INTO service_requests
-           (organization_id, document_number, display_id, status, source,
-            contact_name, contact_email, contact_phone, service_address, town,
-            postal_code, summary, message)
-         SELECT app_require_organization_id(), allocated.n,
-                $1 || lpad(allocated.n::text, 4, '0'), 'new', 'storefront',
-                $2, $3, $4, $5, $6, $7, $8, $9
-         FROM allocated
-         RETURNING id, display_id
-       ),
-       photos_created AS (
-         INSERT INTO service_request_photos
-           (organization_id, service_request_id, storage_key, filename,
-            content_type, size_bytes, position)
-         SELECT app_require_organization_id(), request.id, photo.storage_key,
-                photo.filename, photo.content_type, photo.size_bytes, photo.position
-         FROM json_to_recordset($10::json) AS photo(
-           storage_key text, filename text, content_type text,
-           size_bytes bigint, position integer)
-         CROSS JOIN request
-         RETURNING storage_key
-       )
-       SELECT request.display_id,
-              COALESCE(
-                (SELECT json_agg(photos_created.storage_key) FROM photos_created),
-                '[]'::json
-              ) AS photo_keys
-       FROM request`,
-      [
-        `${config.documents.prefixes.serviceRequest}-`,
-        contactName,
-        contactEmail,
-        contactPhone,
-        serviceAddress,
-        town,
-        postalCode,
-        finalSummary,
-        message,
-        JSON.stringify(photos),
-      ],
-    );
+    let rows: Awaited<ReturnType<ReturnType<typeof db>['query']>>;
+    try {
+      rows = await db().query(
+        `WITH allocated AS (
+           SELECT allocate_document_number('service_request') AS n
+         ),
+         request AS (
+           INSERT INTO service_requests
+             (organization_id, document_number, display_id, status, source,
+              contact_name, contact_email, contact_phone, service_address, town,
+              postal_code, summary, message)
+           SELECT app_require_organization_id(), allocated.n,
+                  $1 || lpad(allocated.n::text, 4, '0'), 'new', 'storefront',
+                  $2, $3, $4, $5, $6, $7, $8, $9
+           FROM allocated
+           RETURNING id, display_id
+         ),
+         photos_created AS (
+           INSERT INTO service_request_photos
+             (organization_id, service_request_id, storage_key, filename,
+              content_type, size_bytes, position)
+           SELECT app_require_organization_id(), request.id, photo.storage_key,
+                  photo.filename, photo.content_type, photo.size_bytes, photo.position
+           FROM json_to_recordset($10::json) AS photo(
+             storage_key text, filename text, content_type text,
+             size_bytes bigint, position integer)
+           CROSS JOIN request
+           RETURNING storage_key
+         )
+         SELECT request.display_id,
+                COALESCE(
+                  (SELECT json_agg(photos_created.storage_key) FROM photos_created),
+                  '[]'::json
+                ) AS photo_keys
+         FROM request`,
+        [
+          `${config.documents.prefixes.serviceRequest}-`,
+          contactName,
+          contactEmail,
+          contactPhone,
+          serviceAddress,
+          town,
+          postalCode,
+          finalSummary,
+          message,
+          JSON.stringify(photos),
+        ],
+      );
+    } catch (error) {
+      // The request and photo rows are one statement, so nothing references
+      // the uploaded objects; remove them rather than leave orphans.
+      await Promise.allSettled(storedKeys.map((key) => deleteUpload(key)));
+      throw error;
+    }
 
     return json({ ok: true, displayId: rows[0]?.display_id }, 201);
   }).catch((error: unknown) => {

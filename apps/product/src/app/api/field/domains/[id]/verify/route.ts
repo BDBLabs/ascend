@@ -5,6 +5,7 @@ import {
   getFieldPrincipal,
   withFieldContext,
 } from '@/lib/field-api-auth';
+import { hasVerificationRecord, verificationRecord } from '@/lib/dns-verification';
 import { privateJson } from '@/lib/http';
 
 export const dynamic = 'force-dynamic';
@@ -12,9 +13,10 @@ export const dynamic = 'force-dynamic';
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
- * POST /api/field/domains/[id]/verify — verify a custom domain.
- * In the current implementation, this directly marks the domain as verified.
- * A real implementation would check for a DNS TXT record first.
+ * POST /api/field/domains/[id]/verify — verify a custom domain by DNS.
+ * The hostname must publish `_ascend-verify.<hostname> TXT ascend-verify=<token>`
+ * with the token stored when the domain was added (migration 036). Only then
+ * is the tenant-scoped mark-verified window called, with that same token.
  */
 export async function POST(
   request: NextRequest,
@@ -37,32 +39,36 @@ export async function POST(
   try {
     return await withFieldContext(principal, async () => {
       const sql = db();
-
-      // Check if domain exists and is not already verified
-      const domainRows = await sql.query(
-        `SELECT id, hostname, verified FROM organization_domains
-         WHERE id = $1`,
+      const challenges = await sql.query(
+        'SELECT hostname, verification_token, verified FROM tenant_domain_challenge($1::uuid)',
         [id],
       );
-
-      if (!domainRows.length) {
+      const challenge = challenges[0] as { hostname: string; verification_token: string | null; verified: boolean } | undefined;
+      if (!challenge) {
         return privateJson({ error: 'Domain not found' }, 404);
       }
-
-      const domain = domainRows[0] as Record<string, unknown>;
-      if (domain.verified) {
+      if (challenge.verified) {
         return privateJson({ ok: true, verified: true, message: 'Domain is already verified' });
       }
+      if (!challenge.verification_token) {
+        return privateJson({ error: 'Domain has no verification challenge' }, 409);
+      }
 
-      // Mark as verified
-      await sql.query(
-        `UPDATE organization_domains
-         SET verified = true, verified_at = now()
-         WHERE id = $1`,
-        [id],
+      const record = verificationRecord(challenge.hostname, challenge.verification_token);
+      if (!(await hasVerificationRecord(challenge.hostname, challenge.verification_token))) {
+        return privateJson({
+          ok: false,
+          verified: false,
+          error: 'Verification record not found yet. DNS changes can take a while to propagate.',
+          verification: { type: 'TXT', name: record.name, value: record.value },
+        }, 409);
+      }
+
+      const marked = await sql.query(
+        'SELECT tenant_domain_mark_verified($1::uuid, $2::text) AS verified',
+        [id, challenge.verification_token],
       );
-
-      return privateJson({ ok: true, verified: true });
+      return privateJson({ ok: true, verified: Boolean(marked[0]?.verified) });
     });
   } catch (error) {
     console.error('Domain verify failed.', error);

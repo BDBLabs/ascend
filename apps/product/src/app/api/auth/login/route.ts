@@ -48,6 +48,12 @@ export async function POST(request: NextRequest) {
   if (!email || !body.password) {
     return privateJson({ error: 'invalid-credentials' }, 401);
   }
+  // Per-account throttle on top of the per-address one: a distributed guess
+  // against one login is slowed here, and locked out in the database
+  // (staff_login_failure) after 10 consecutive failures.
+  if (!(await rateLimitWithFallback(`login:account:${email}`, { capacity: 10, refillPerMinute: 2 }))) {
+    return privateJson({ error: 'too-many-requests' }, 429);
+  }
 
   const namedOrganization = typeof body.organizationId === 'string'
     && UUID_PATTERN.test(body.organizationId.trim())
@@ -55,7 +61,7 @@ export async function POST(request: NextRequest) {
     : null;
 
   let organizationId: string | null = namedOrganization;
-  let organizations: Array<{ organizationId: string; role: string }> | null = null;
+  let organizations: Array<{ organizationId: string; name: string; role: string }> | null = null;
 
   if (!organizationId) {
     // Verify password globally before returning multi-tenant organization choices (SEC-09)
@@ -70,6 +76,7 @@ export async function POST(request: NextRequest) {
     } else if (memberships.length > 1) {
       organizations = memberships.map((m) => ({
         organizationId: m.organizationId,
+        name: m.organizationName,
         role: m.role,
       }));
     }

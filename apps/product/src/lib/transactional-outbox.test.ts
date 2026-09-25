@@ -46,6 +46,7 @@ describe('claimOutboxMessages', () => {
       key: 'idem-1',
       payload: { displayId: 'EST-0001' },
       attempts: 2,
+      claim_token: '33333333-3333-4333-8333-333333333333',
     }]);
 
     const messages = await claimOutboxMessages(20);
@@ -61,6 +62,7 @@ describe('claimOutboxMessages', () => {
       key: 'idem-1',
       payload: { displayId: 'EST-0001' },
       attempts: 2,
+      claimToken: '33333333-3333-4333-8333-333333333333',
     }]);
   });
 
@@ -71,21 +73,28 @@ describe('claimOutboxMessages', () => {
 });
 
 describe('finishOutboxMessage', () => {
-  it('records success through the finish window', async () => {
-    mocks.platformQuery.mockResolvedValue([]);
-    await finishOutboxMessage('id-1', true, null);
+  const claim = { id: 'id-1', claimToken: 'token-1' };
+
+  it('records success through the fenced finish window', async () => {
+    mocks.platformQuery.mockResolvedValue([{ recorded: true }]);
+    await expect(finishOutboxMessage(claim, { succeeded: true })).resolves.toBe(true);
     expect(mocks.platformQuery).toHaveBeenCalledWith(
-      'SELECT finish_outbox_message($1, $2, $3)',
-      ['id-1', true, null],
+      'SELECT finish_outbox_message($1, $2, $3, $4, $5) AS recorded',
+      ['id-1', 'token-1', true, true, null],
     );
   });
 
-  it('records a failure with the error code', async () => {
-    mocks.platformQuery.mockResolvedValue([]);
-    await finishOutboxMessage('id-1', false, 'provider_rate_limit');
+  it('records a failure with the error code and retryability', async () => {
+    mocks.platformQuery.mockResolvedValue([{ recorded: true }]);
+    await finishOutboxMessage(claim, { succeeded: false, retryable: false, error: 'provider_rejected' });
     expect(mocks.platformQuery).toHaveBeenCalledWith(
-      'SELECT finish_outbox_message($1, $2, $3)',
-      ['id-1', false, 'provider_rate_limit'],
+      'SELECT finish_outbox_message($1, $2, $3, $4, $5) AS recorded',
+      ['id-1', 'token-1', false, false, 'provider_rejected'],
     );
+  });
+
+  it('reports a lost claim (reclaimed lease) as not recorded', async () => {
+    mocks.platformQuery.mockResolvedValue([{ recorded: false }]);
+    await expect(finishOutboxMessage(claim, { succeeded: true })).resolves.toBe(false);
   });
 });

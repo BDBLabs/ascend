@@ -5,10 +5,7 @@ import {
   customerAccessTokenHasValidSyntax,
   hashCustomerAccessToken,
 } from '@/lib/customer-access-tokens';
-import {
-  consumeCustomerAccessGrant,
-  verifyCustomerAccessGrant,
-} from '@/lib/customer-access-grants';
+import { verifyCustomerAccessGrant } from '@/lib/customer-access-grants';
 import {
   declineEstimate,
   getEstimate,
@@ -37,7 +34,7 @@ export type CustomerEstimateDecisionInput = {
 
 export type CustomerEstimateDecisionResult =
   | { ok: true; decision: 'approved' | 'declined'; reused: boolean }
-  | { ok: false; reason: 'invalid' | 'not-found' | 'expired' | 'already-decided' };
+  | { ok: false; reason: 'invalid' | 'not-found' | 'expired' | 'already-decided' | 'superseded' };
 
 const MIN_SIGNER_NAME = 2;
 const MAX_SIGNER_NAME = 120;
@@ -66,11 +63,11 @@ export async function decideCustomerEstimate(
   // first resolve the grant (RLS-scoped to the tenant context the customer host
   // established) and then run the canonical token verification.
   const rows = (await db().query(
-    `SELECT grant.id, grant.document_id
-       FROM customer_access_grants AS grant
-      WHERE grant.token_hash = $1
-        AND grant.document_type = 'estimate'
-        AND grant.purpose = 'sign'
+    `SELECT access_grant.id, access_grant.document_id
+       FROM customer_access_grants AS access_grant
+      WHERE access_grant.token_hash = $1
+        AND access_grant.document_type = 'estimate'
+        AND access_grant.purpose = 'sign'
       LIMIT 1`,
     [hashCustomerAccessToken(token)],
   )) as GrantRow[];
@@ -97,19 +94,25 @@ export async function decideCustomerEstimate(
   if (estimate.status !== 'draft') return { ok: false, reason: 'already-decided' };
 
   const ctx = { ip: input.ip, userAgent: input.userAgent };
+  // The grant is consumed in the same statement as the transition (P3.2).
+  const decisionGrant = {
+    id: grant.id,
+    resourceVersion: verified.grant.resourceVersion,
+    deliveryId: verified.grant.deliveryId,
+  };
   const outcome = input.decision === 'approved'
     ? await signEstimate(grant.document_id, {
         signerName: input.signerName.trim(),
         signatureContext: 'protected-published',
-      }, ctx)
-    : await declineEstimate(grant.document_id, ctx);
+      }, ctx, decisionGrant)
+    : await declineEstimate(grant.document_id, ctx, decisionGrant);
 
   if (!outcome.ok) {
     if (outcome.reason === 'not-found') return { ok: false, reason: 'not-found' };
     if (outcome.reason === 'invalid-context') return { ok: false, reason: 'invalid' };
+    if (outcome.reason === 'superseded') return { ok: false, reason: 'superseded' };
     return { ok: false, reason: 'already-decided' };
   }
 
-  await consumeCustomerAccessGrant(grant.id);
   return { ok: true, decision: input.decision, reused: false };
 }

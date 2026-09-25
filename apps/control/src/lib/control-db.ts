@@ -1,6 +1,7 @@
 import 'server-only';
 
 import pg from 'pg';
+import { createRuntimeGuard, ENVIRONMENT_REGISTRY } from '@contractor-platform/database';
 import { controlDatabaseUrl } from '@/lib/control-env';
 
 export type ControlRole = 'control_app' | 'contractor_app';
@@ -21,19 +22,22 @@ export type ControlStatement = {
 };
 
 let pool: pg.Pool | null = null;
+let guard: ReturnType<typeof createRuntimeGuard> | null = null;
 
 function connectionPool() {
   if (!pool) {
-    const connectionString = controlDatabaseUrl();
+    // Environment identity (P1.3): a development control plane pointed at
+    // the production branch is refused before the pool exists (registered
+    // endpoint) or on first connection (database stamp). TLS is explicit and
+    // verified for every non-loopback host (P4.3).
+    guard = createRuntimeGuard({
+      connectionString: controlDatabaseUrl(),
+      env: process.env,
+      registry: ENVIRONMENT_REGISTRY,
+    });
     pool = new pg.Pool({
-      connectionString,
-      // Require SSL for all non-local connections, matching the product app's
-      // db.ts behaviour. A misconfigured URL or provider change cannot silently
-      // fall back to plaintext.
-      ssl: /localhost|127\.0\.0\.1/.test(connectionString)
-        ? false
-        : { rejectUnauthorized: true },
-      max: Number(process.env.CONTROL_DATABASE_POOL_MAX ?? 5),
+      ...guard.config,
+      max: Number(process.env.CONTROL_DATABASE_POOL_MAX ?? (process.env.VERCEL ? 2 : 5)),
       idleTimeoutMillis: 30_000,
       connectionTimeoutMillis: 10_000,
     });
@@ -59,6 +63,7 @@ export async function closeControlDatabasePool() {
 async function executeStatements(statements: readonly ControlStatement[]): Promise<ControlRows[]> {
   const client = await connectionPool().connect();
   try {
+    await guard?.verifyStamp(client);
     await client.query('BEGIN');
     const results: ControlRows[] = [];
     let currentRole: ControlRole | null = null;

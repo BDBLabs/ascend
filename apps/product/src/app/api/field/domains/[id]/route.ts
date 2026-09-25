@@ -35,25 +35,11 @@ export async function DELETE(
 
   try {
     return await withFieldContext(principal, async () => {
-      const sql = db();
-
-      // Check if this is the canonical domain
-      const domainRows = await sql.query(
-        `SELECT id, is_canonical FROM organization_domains
-         WHERE id = $1`,
-        [id],
-      );
-
-      if (!domainRows.length) {
-        return privateJson({ error: 'Domain not found' }, 404);
+      // Tenant-scoped window: only this organization's non-canonical domains.
+      const rows = await db().query('SELECT tenant_domain_remove($1::uuid) AS removed', [id]);
+      if (!rows[0]?.removed) {
+        return privateJson({ error: 'Domain not found or not removable' }, 404);
       }
-
-      if (domainRows[0].is_canonical) {
-        return privateJson({ error: 'Cannot remove the canonical domain' }, 400);
-      }
-
-      await sql.query('DELETE FROM organization_domains WHERE id = $1', [id]);
-
       return privateJson({ ok: true });
     });
   } catch (error) {

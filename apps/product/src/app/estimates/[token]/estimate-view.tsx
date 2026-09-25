@@ -1,5 +1,6 @@
 import type { CustomerEstimateDocument } from '@/lib/customer-estimate-document';
 import type { EstimateRecord } from '@/lib/estimate-record';
+import { CONSENT_TEXT } from '@/lib/estimate-evidence';
 import { EstimateDecisionForm } from './decision-form';
 import styles from './estimate.module.css';
 
@@ -43,7 +44,7 @@ export function EstimateView({
   const { estimate, purpose, expiresAt } = document;
   const status = STATUS_LABELS[estimate.status];
   const totals = estimate.totals;
-  const canDecide = purpose === 'sign' && estimate.status === 'draft';
+  const canDecide = purpose === 'sign' && estimate.status === 'draft' && !document.superseded;
   const alreadyDecided = purpose === 'sign' && estimate.status !== 'draft';
 
   return (
@@ -134,7 +135,13 @@ export function EstimateView({
           token={token}
           intent={intent}
           companyName={companyName}
+          consentText={CONSENT_TEXT}
         />
+      )}
+      {purpose === 'sign' && estimate.status === 'draft' && document.superseded && (
+        <p className={styles.decisionSuccess} role="status">
+          This estimate was updated after this link was sent. Ask {companyName ?? 'the business'} for the latest version.
+        </p>
       )}
       {alreadyDecided && (
         <p className={styles.decisionSuccess} role="status">

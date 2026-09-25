@@ -31,7 +31,7 @@ function validTimeZone(value: unknown): string {
 
 function deliveryFailureStatus(reason: string) {
   if (reason === 'estimate-not-found') return 404;
-  if (reason === 'estimate-not-draft' || reason === 'customer-email-missing') return 409;
+  if (reason === 'estimate-not-draft' || reason === 'customer-email-missing' || reason === 'estimate-changed') return 409;
   return 503;
 }
 

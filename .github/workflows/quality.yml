@@ -4,15 +4,37 @@ on:
   push:
     branches: [main]
   pull_request:
+  # The release workflow calls this one, so a tag is released only from a
+  # commit that passes the same gate as main.
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # Lints the workflows themselves (P1.2). An earlier quality.yml referenced a
+  # secret in a job-level `if`, which GitHub rejects at parse time: every run
+  # failed with zero jobs. actionlint catches that class of error before merge.
+  workflows:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: actionlint
+        uses: docker://rhysd/actionlint:1.7.7
+        with:
+          args: -color
+
   verify:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version-file: .nvmrc
           cache: npm
       - run: npm ci
       - run: npm run secrets:check
@@ -21,23 +43,83 @@ jobs:
       - run: npm run build:all
       - run: npm run audit:production
 
-  # Isolation guarantees are worth nothing if nothing re-checks them. The
-  # predecessor left db:rls:check as a manual step and it drifted. Runs
-  # whenever the disposable-branch owner credential is configured, so there is
-  # no manual flag to forget to turn on.
+  # Tenant isolation, function ACLs, document integrity and regression suites
+  # against a disposable PostgreSQL built from zero by the migration runner.
+  # Needs no secret, so it runs on every push and pull request -- including
+  # forks. (The job it replaces gated its only step on an env var declared on
+  # that same step, which a step's `if` cannot see, so it always skipped and
+  # reported green.) The owner role mirrors Neon's
+  # (CREATEROLE + BYPASSRLS, not superuser); the login roles mirror
+  # scripts/provision-neon-branch.mjs so the ACL suite checks them too.
   isolation:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: ci-superuser
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      ASCEND_ENVIRONMENT: ci
+      PGHOST: localhost
+      PGUSER: postgres
+      PGPASSWORD: ci-superuser
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - name: Run DB isolation verification
-        if: env.DATABASE_URL_OWNER != ''
+      - name: Create the owner role and database
+        run: |
+          psql -v ON_ERROR_STOP=1 -c "CREATE ROLE ascend_owner LOGIN CREATEROLE BYPASSRLS PASSWORD 'ci-only'"
+          psql -v ON_ERROR_STOP=1 -c "CREATE DATABASE ascend OWNER ascend_owner"
+          psql -v ON_ERROR_STOP=1 -d ascend -c "ALTER SCHEMA public OWNER TO ascend_owner"
+      - name: Migrate from zero
+        run: npm run db:migrate
+        env:
+          DATABASE_URL_OWNER: postgresql://ascend_owner:ci-only@localhost:5432/ascend
+      - name: Create restricted login roles (as provision-neon-branch.mjs does)
+        run: |
+          psql -v ON_ERROR_STOP=1 -d ascend <<'SQL'
+          CREATE ROLE ascend_runtime LOGIN PASSWORD 'ci-only' NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
+          GRANT contractor_app, platform_runtime TO ascend_runtime;
+          GRANT USAGE ON SCHEMA public TO ascend_runtime;
+          CREATE ROLE ascend_control LOGIN PASSWORD 'ci-only' NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
+          GRANT control_app, contractor_app TO ascend_control;
+          GRANT USAGE ON SCHEMA public TO ascend_control;
+          SQL
+      - name: Run every check suite
         run: npm run db:verify
         env:
-          # Owner credential for a DISPOSABLE branch. The checks write and then
-          # roll back, so this must never point at production.
-          DATABASE_URL_OWNER: ${{ secrets.VERIFY_DATABASE_URL_OWNER }}
+          DATABASE_URL_OWNER: postgresql://ascend_owner:ci-only@localhost:5432/ascend
+      - name: Native-auth lifecycle through the real auth module (P2)
+        run: npm run test:integration --workspace @contractor-platform/product
+        env:
+          INTEGRATION_DATABASE_URL: postgresql://ascend_runtime:ci-only@localhost:5432/ascend
+          INTEGRATION_OWNER_URL: postgresql://ascend_owner:ci-only@localhost:5432/ascend
+      - name: Pre-promotion gate (schema, roles, RLS, function ACL) passes
+        run: node packages/database/preflight.mjs
+        env:
+          DATABASE_URL_OWNER: postgresql://ascend_owner:ci-only@localhost:5432/ascend
+      - name: Re-running the migrator is a no-op
+        run: npm run db:migrate | tee migrate.log && grep -q 'up to date' migrate.log
+        env:
+          DATABASE_URL_OWNER: postgresql://ascend_owner:ci-only@localhost:5432/ascend
+      - name: Cross-environment runs are refused before touching the database
+        env:
+          DATABASE_URL_OWNER: postgresql://ascend_owner:ci-only@localhost:5432/ascend
+        run: |
+          set +e
+          ASCEND_ENVIRONMENT=production node packages/database/verify.mjs; code=$?
+          test "$code" -eq 3 || { echo "verify against production exited $code, expected refusal (3)"; exit 1; }
+          ASCEND_ENVIRONMENT=development node packages/database/verify.mjs; code=$?
+          test "$code" -eq 3 || { echo "stamp mismatch exited $code, expected refusal (3)"; exit 1; }
+          echo "cross-environment runs refused"

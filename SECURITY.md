@@ -21,10 +21,21 @@ the incident process in `docs/assurance/REMEDIATION_PLAN.md`.
   runtime logins (`contractor_app`, `platform_runtime`, `control_app`),
   per-transaction role assumption. An app path can forget tenant context;
   it cannot forget a database policy. Verify with `npm run db:verify`.
-- **Demo mode is fail-closed in production**: `FIELD_DEMO_MODE=1` alone
-  never yields a principal on a production process; both it and
-  `FIELD_DEMO_ALLOW_IN_PRODUCTION=1` are required, and the latter belongs
-  only on sandboxes without real tenant data.
+- **Demo mode cannot reach production**: a production deployment
+  (`ASCEND_ENVIRONMENT`/`VERCEL_ENV=production`) never serves the demo
+  principal and refuses to start while any demo variable is set. A
+  production-built sandbox needs `FIELD_DEMO_ALLOW_IN_PRODUCTION=1`.
+- **Privileged database functions are closed by default**: no function is
+  executable by PUBLIC; each role has an explicit, tested grant matrix
+  (`checks/function-acl.sql`).
+- **Sessions are version-bound**: any credential, status, role or MFA change
+  revokes affected sessions in the same transaction, and reactivation never
+  revives a token. MFA secrets cannot be replaced by another session; TOTP
+  codes are single-use; failed sign-ins lock the account deployment-wide.
+- **Operators are named**: control-plane actions require a per-operator token
+  and are written to an append-only audit trail with the operator id.
+- **Environment identity**: tools and apps refuse a database registered or
+  stamped for another environment before touching it.
 - **Money is integer cents, server-authoritative**; unpublished pricing
   cannot enter a commercial document; configuration is versioned/immutable.
 - **Regulatory claims are approval-flagged**: license/insurance statements

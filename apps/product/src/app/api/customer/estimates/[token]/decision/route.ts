@@ -67,6 +67,8 @@ export async function POST(
         ? 'This link has expired.'
         : result.reason === 'already-decided'
           ? 'This estimate already has a customer response.'
+          : result.reason === 'superseded'
+            ? 'This estimate was updated after this link was sent. Ask for the latest version.'
           : result.reason === 'invalid'
             ? 'The response is incomplete.'
             : 'This response could not be recorded.';

@@ -1,15 +1,30 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
+import { createHash } from 'node:crypto';
 
-const { queryMock, configuredMock } = vi.hoisted(() => ({
+const { queryMock, configuredMock, hostMock, tenantMock, rateLimitMock } = vi.hoisted(() => ({
   queryMock: vi.fn(),
   configuredMock: vi.fn(() => true),
+  hostMock: vi.fn(() => 'paris.useascend.com'),
+  tenantMock: vi.fn(),
+  rateLimitMock: vi.fn(async () => true),
 }));
 
 vi.mock('@/lib/db', () => ({
-  platformDb: () => ({ query: queryMock }),
+  db: () => ({ query: queryMock }),
   isDatabaseConfigured: configuredMock,
 }));
+
+vi.mock('next/headers', () => ({
+  headers: async () => new Headers({ host: hostMock() }),
+}));
+
+vi.mock('@/lib/redis-rate-limit', () => ({ rateLimitWithFallback: rateLimitMock }));
+
+vi.mock('@/lib/tenant', () => {
+  class TenantResolutionError extends Error {}
+  return { TenantResolutionError, withTenant: tenantMock };
+});
 
 import { POST } from './route';
 
@@ -32,6 +47,25 @@ describe('dispatch ticket creation', () => {
     queryMock.mockReset();
     configuredMock.mockReset();
     configuredMock.mockReturnValue(true);
+    hostMock.mockReturnValue('paris.useascend.com');
+    rateLimitMock.mockResolvedValue(true);
+    tenantMock.mockReset();
+    tenantMock.mockImplementation(async (work: (tenant: unknown) => Promise<unknown>) =>
+      work({ organizationId: 'org-1' }));
+  });
+
+  it('refuses intake on a non-tenant host before reading the body', async () => {
+    hostMock.mockReturnValue('useascend.com');
+    const response = await POST(postRequest(VALID_BODY));
+    expect(response.status).toBe(404);
+    expect(queryMock).not.toHaveBeenCalled();
+  });
+
+  it('rate limits intake by client address', async () => {
+    rateLimitMock.mockResolvedValue(false);
+    const response = await POST(postRequest(VALID_BODY));
+    expect(response.status).toBe(429);
+    expect(queryMock).not.toHaveBeenCalled();
   });
 
   it('returns 503 when the database is not configured', async () => {
@@ -107,17 +141,26 @@ describe('dispatch ticket creation', () => {
     expect(queryMock).not.toHaveBeenCalled();
   });
 
-  it('creates a dispatch ticket and returns its number', async () => {
+  it('creates a tenant-bound ticket and returns a one-time tracking token', async () => {
     queryMock.mockResolvedValueOnce([
-      { ticket: { id: '7c9e6679-7425-40de-944b-e07fc1f90ae7', ticket_number: 'DT-2026-0007' } },
+      { id: '7c9e6679-7425-40de-944b-e07fc1f90ae7', ticket_number: 'DRQ-000007' },
     ]);
 
     const response = await POST(postRequest(VALID_BODY));
     const payload = await response.json();
 
     expect(response.status).toBe(201);
-    expect(payload).toEqual({ ok: true, ticketNumber: 'DT-2026-0007' });
-    expect(queryMock).toHaveBeenCalledWith('SELECT create_dispatch_ticket($1, $2, $3, $4, $5, $6, $7, $8) AS ticket', [
+    expect(payload.ok).toBe(true);
+    expect(payload.ticketNumber).toBe('DRQ-000007');
+    expect(payload.trackingToken).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(payload).not.toHaveProperty('ticketId');
+    expect(tenantMock).toHaveBeenCalledTimes(1);
+
+    const [sql, params] = queryMock.mock.calls[0] as [string, unknown[]];
+    expect(sql).toBe('SELECT id, ticket_number FROM create_dispatch_ticket($1, $2, $3, $4, $5, $6, $7, $8, $9)');
+    // Only the token's hash reaches the database.
+    expect(params[0]).toBe(createHash('sha256').update(payload.trackingToken).digest('hex'));
+    expect(params.slice(1)).toEqual([
       VALID_BODY.category,
       VALID_BODY.workRequired,
       VALID_BODY.siteLocation,

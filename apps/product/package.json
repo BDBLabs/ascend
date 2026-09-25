@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:integration": "vitest run src/lib/auth.integration.test.ts src/lib/estimate-evidence.integration.test.ts"
   },
   "dependencies": {
     "@contractor-platform/ai": "0.1.0",
@@ -16,6 +17,7 @@
     "@contractor-platform/domain": "0.1.0",
     "@contractor-platform/money": "0.1.0",
     "@upstash/redis": "^1.38.2",
+    "aws4fetch": "^1.0.20",
     "jose": "^6.0.11",
     "next": "16.3.6",
     "otplib": "^13.4.1",

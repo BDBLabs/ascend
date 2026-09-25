@@ -1,5 +1,15 @@
 # GitHub Issues
 
+> **Status (GA remediation branch):** 1, 2, 3, 8, 10 were already fixed in-tree.
+> 4 no longer applies (the Ascend workspace has no sidebar after the
+> standalone sanitize). 5 fixed (every Ascend table scrolls horizontally via
+> `tableScroll`). 6 exists (`issueInvoice`/`cancelInvoice`/`recordPayment`) and
+> now works end to end (migration 032 fixed the trigger that made each fail).
+> 7 exists (`/api/field/change-orders/*`). 9 fixed (the stepper receives the
+> tracked document's status; the page's token lookup, which called an
+> uninstalled `digest()`, is fixed too). 11 already resolved (card padding 16px).
+> GA gates live in `docs/assurance/REMEDIATION_STATUS.md`, not here.
+
 ## Issue 1: CRITICAL — Storefront request form sends wrong field names to API
 **Labels:** bug, critical, storefront
 **Description:**
