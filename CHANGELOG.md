@@ -14,6 +14,18 @@ Monorepo (`ascend` workspaces): `apps/product`, `apps/control`,
 - `scripts/write-neon-env.mjs` stamps `ENVIRONMENT` into every generated
   env file; operator-supplied overrides are stripped.
 
+### Added (P1.1 — function privilege lockdown)
+- Migration `032_function_privilege_lockdown.sql`: revokes default PUBLIC
+  execute on all application functions, closes the default for future
+  functions (`ALTER DEFAULT PRIVILEGES`), restates the full explicit grant
+  matrix (tenant primitives to all app roles; service functions to
+  `platform_runtime`/`control_app` only; trigger helpers ungranted).
+  Corrects `set_application_context` (was granted TO PUBLIC) and grants the
+  previously-default 023 dispatch overload + 017 idempotency helpers.
+- Check suite `function-acls.sql` (runs under `db:verify`): fails on any
+  PUBLIC-executable function, missing grants, tenant-role excess, or broken
+  secure defaults. Branches must be at 032+ to pass.
+
 ## [0.1.0] - 2026-09-25
 
 First production-distribution snapshot. Staging-complete; **not GA** —

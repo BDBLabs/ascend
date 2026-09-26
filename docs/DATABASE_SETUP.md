@@ -112,6 +112,28 @@ for the correct target, verify with `db:status`, and rotate any credential
 whose placement no longer matches policy — a credential that lived where it
 should not have is compromised by definition.
 
+## Function privileges (P1.1 — least privilege on application functions)
+
+PostgreSQL grants EXECUTE on new functions to PUBLIC by default. Migration
+`032_function_privilege_lockdown.sql` revokes that default on every existing
+application function, closes it for the future (`ALTER DEFAULT PRIVILEGES
+... REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC`, running as the owner), and
+records the complete explicit grant matrix:
+
+| Functions | Roles |
+|---|---|
+| Tenant-context primitives (`app_*`, `set_application_context`, `resolve_verified_organization`, `allocate_document_number`) | `contractor_app`, `platform_runtime`, `control_app` |
+| Clerk identity, field auth, MFA, outbox, Stripe, observability, idempotency, workspace provisioning, dispatch portal | `platform_runtime`, `control_app` — never the tenant role |
+| `create_job_snapshot` | `contractor_app` only |
+| Trigger helpers (`enforce_*`, `reject_*`, `restrict_*`) | no grant (trigger firing needs none; nothing calls them directly) |
+
+Rule for every future migration: **each new function ships its explicit
+GRANT in the same migration.** The `function-acls` check suite
+(`packages/database/checks/function-acls.sql`, runs under `db:verify`)
+fails the build on any PUBLIC-executable function, any missing grant, any
+tenant-role excess — and proves secure defaults with a probe function.
+Branches must be migrated to 032+ for the suite to pass.
+
 ## 2. Apply migration 001 as the owner
 
 Connect with the owner's **unpooled** connection string (migrations run DDL; use the direct
