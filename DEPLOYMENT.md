@@ -82,6 +82,8 @@ owner credential — never production) is configured.
 
 - [ ] `verify:ci` green on the exact deployed commit
 - [ ] Separate Neon branch per environment; runtime is not owner, no BYPASSRLS
+- [ ] Every env file carries its stamped `ENVIRONMENT`; production migration
+  acknowledgement (`ALLOW_PRODUCTION_DB_MUTATION=1`) never persisted in a file
 - [ ] `FIELD_DEMO_MODE` unset in production (acknowledgement key only on sandboxes)
 - [ ] `RESEND_API_KEY` still unset until P0.2 exit evidence exists
 - [ ] `/api/health` 200 on both apps; cron secret configured; outbox draining

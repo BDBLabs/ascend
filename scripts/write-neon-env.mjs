@@ -116,13 +116,15 @@ const retained = existing
   .split(/\r?\n/)
   .filter((line) => {
     const key = line.match(/^([A-Z][A-Z0-9_]*)=/)?.[1];
-    return !key || !REQUIRED_KEYS.includes(key);
+    return !key || (!REQUIRED_KEYS.includes(key) && key !== 'ENVIRONMENT');
   })
   .join('\n')
   .trimEnd();
 const databaseBlock = [
   '# Generated locally by scripts/write-neon-env.mjs.',
   '# Gitignored. Never commit or paste these values into logs.',
+  `# ENVIRONMENT is stamped, not supplied: this file declares the ${environmentName} branch.`,
+  `ENVIRONMENT=${environmentName}`,
   ...REQUIRED_KEYS.map((key) => `${key}=${values[key]}`),
 ].join('\n');
 const body = `${retained ? `${retained}\n\n` : ''}${databaseBlock}\n`;

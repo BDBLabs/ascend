@@ -90,6 +90,28 @@ Neon creates an owner role (`ascend_owner` or similar). **That role is for migra
 It owns the tables and has `CREATEROLE`, which migration 001 needs in order to create
 `contractor_app`, `control_app`, and `platform_runtime`.
 
+## Environment declaration (P1.3 — cross-environment refusal)
+
+Every env file declares its branch via `ENVIRONMENT` (`development`, `preview`,
+`production`), stamped automatically by `scripts/write-neon-env.mjs` — never
+hand-edit it to a different environment. Owner-credential tools enforce it
+before connecting (`packages/database/env-guard.mjs`):
+
+| Tool | development / preview | production |
+|---|---|---|
+| `db:migrate` | runs | requires `ALLOW_PRODUCTION_DB_MUTATION=1` per invocation (never persisted in a file) |
+| `db:verify` | runs | refused, no override (use a disposable branch) |
+| `db:seed:dev`, demo seeds | run | refused, no override |
+
+Unset or unknown `ENVIRONMENT` fails the tool outright (exit 2). This is what
+makes a cross-environment run fail before connecting or mutating.
+
+If an existing local env file points at the wrong branch (e.g. a control
+`.env.local` aimed at production), regenerate it with `write-neon-env.mjs`
+for the correct target, verify with `db:status`, and rotate any credential
+whose placement no longer matches policy — a credential that lived where it
+should not have is compromised by definition.
+
 ## 2. Apply migration 001 as the owner
 
 Connect with the owner's **unpooled** connection string (migrations run DDL; use the direct

@@ -8,13 +8,19 @@
  *
  * DESTRUCTIVE: the checks provision throwaway organizations, then ROLLBACK.
  * Point this at a development or preview branch, never production.
+ * Requires ENVIRONMENT; production is refused with no override.
  */
 import { readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
+import { guardToolEnvironment } from './env-guard.mjs';
 
 const CHECKS_DIR = join(dirname(fileURLToPath(import.meta.url)), 'checks');
+
+// P1.3: the suites write throwaway rows (rolled back). Production is never a
+// valid target — use a disposable branch via VERIFY_DATABASE_URL_OWNER.
+guardToolEnvironment('verify', 'refuse-production');
 
 if (!process.env.DATABASE_URL_OWNER) {
   process.stderr.write('DATABASE_URL_OWNER is not set. See docs/DATABASE_SETUP.md.\n');

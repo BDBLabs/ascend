@@ -3,6 +3,17 @@
 Monorepo (`ascend` workspaces): `apps/product`, `apps/control`,
 `packages/*`. Format follows Keep a Changelog. Tags: `v0.1.0`.
 
+## [Unreleased]
+
+### Added (P1.3 — environment separation)
+- `packages/database/env-guard.mjs`: owner-credential tools
+  (migrate, verify, both seeds) require a declared `ENVIRONMENT` and fail
+  before connecting otherwise. Seeds and verify never run on production
+  (no override); migrate on production requires per-invocation
+  `ALLOW_PRODUCTION_DB_MUTATION=1`. 15 tests.
+- `scripts/write-neon-env.mjs` stamps `ENVIRONMENT` into every generated
+  env file; operator-supplied overrides are stripped.
+
 ## [0.1.0] - 2026-09-25
 
 First production-distribution snapshot. Staging-complete; **not GA** —

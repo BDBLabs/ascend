@@ -15,7 +15,11 @@ import { readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
+import { guardToolEnvironment } from './env-guard.mjs';
 import { splitStatements } from './sql-split.mjs';
+
+// P1.3: demo seeds never run on a real production tenant database.
+guardToolEnvironment('seed-ascend-demo', 'refuse-production');
 
 const ORG_ID = 'b7ea0f0e-373e-4a89-8684-aaf1c14d26f3';
 

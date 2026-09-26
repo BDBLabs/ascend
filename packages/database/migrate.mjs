@@ -3,6 +3,9 @@
  *
  *   node --env-file=.env.local packages/database/migrate.mjs [--status] [--dry-run]
  *
+ * Requires ENVIRONMENT (stamped by scripts/write-neon-env.mjs). Production
+ * runs additionally require ALLOW_PRODUCTION_DB_MUTATION=1 per invocation.
+ *
  * Connects with DATABASE_URL_OWNER, never the runtime credential: applying DDL
  * is the one job the owner exists for, and the runtime login deliberately has
  * no privilege to do it.
@@ -15,7 +18,12 @@ import { readdir, readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
+import { guardToolEnvironment } from './env-guard.mjs';
 import { planMigrations } from './src/migration-plan.mjs';
+
+// P1.3: fail before connecting when the declared environment does not permit
+// migration. Production additionally requires ALLOW_PRODUCTION_DB_MUTATION=1.
+guardToolEnvironment('migrate', 'confirm-production');
 
 const MIGRATIONS_DIR = join(dirname(fileURLToPath(import.meta.url)), 'migrations');
 

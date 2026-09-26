@@ -41,3 +41,6 @@ jobs:
           # Owner credential for a DISPOSABLE branch. The checks write and then
           # roll back, so this must never point at production.
           DATABASE_URL_OWNER: ${{ secrets.VERIFY_DATABASE_URL_OWNER }}
+          # P1.3: the tools refuse without a declared environment. This labels
+          # the disposable branch development; it must never be production.
+          ENVIRONMENT: development

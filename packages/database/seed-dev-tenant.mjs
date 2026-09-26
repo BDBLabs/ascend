@@ -9,12 +9,17 @@
  *
  * DEV ONLY. This seeds a throwaway-looking tenant with placeholder data. Point
  * it at a development or preview branch, never production.
+ * Requires ENVIRONMENT; production is refused with no override.
  */
 import { readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
+import { guardToolEnvironment } from './env-guard.mjs';
 import { splitStatements } from './sql-split.mjs';
+
+// P1.3: dev seeds never run on production — no override exists.
+guardToolEnvironment('seed-dev-tenant', 'refuse-production');
 
 const DEV_ORG_ID = 'de000000-0000-0000-0000-000000000001';
 
